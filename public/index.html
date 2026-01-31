@@ -1496,7 +1496,7 @@
     // ============================================
     // LEAFLET MAP COMPONENT
     // ============================================
-    const WorldMap = ({ deLocation, dxLocation, onDXChange, potaSpots, mySpots, dxPaths, satellites }) => {
+    const WorldMap = ({ deLocation, dxLocation, onDXChange, potaSpots, mySpots, dxPaths, satellites, showDXPaths, showPOTA, showSatellites }) => {
       const mapRef = useRef(null);
       const mapInstanceRef = useRef(null);
       const tileLayerRef = useRef(null);
@@ -1513,7 +1513,7 @@
       const satMarkersRef = useRef([]);
       const satTracksRef = useRef([]);
       
-      // Load map view settings from localStorage
+      // Load map style from localStorage
       const getStoredMapSettings = () => {
         try {
           const stored = localStorage.getItem('openhamclock_mapSettings');
@@ -1523,19 +1523,15 @@
       const storedSettings = getStoredMapSettings();
       
       const [mapStyle, setMapStyle] = useState(storedSettings.mapStyle || 'dark');
-      const [showSatellites, setShowSatellites] = useState(storedSettings.showSatellites !== false);
-      const [showDXPaths, setShowDXPaths] = useState(storedSettings.showDXPaths !== false);
       
-      // Save map view settings to localStorage when they change
+      // Save map style to localStorage when changed
       useEffect(() => {
         try {
           localStorage.setItem('openhamclock_mapSettings', JSON.stringify({
-            mapStyle,
-            showSatellites,
-            showDXPaths
+            mapStyle
           }));
         } catch (e) { console.error('Failed to save map settings:', e); }
-      }, [mapStyle, showSatellites, showDXPaths]);
+      }, [mapStyle]);
 
       // Initialize map
       useEffect(() => {
@@ -1836,6 +1832,7 @@
         }
       }, [dxPaths, showDXPaths]);
 
+      // Update POTA markers
       useEffect(() => {
         if (!mapInstanceRef.current) return;
         const map = mapInstanceRef.current;
@@ -1844,21 +1841,23 @@
         potaMarkersRef.current.forEach(m => map.removeLayer(m));
         potaMarkersRef.current = [];
 
-        // Add new POTA markers
-        potaSpots.forEach(spot => {
-          if (spot.lat && spot.lon) {
-            const icon = L.divIcon({
-              className: '',
-              html: `<div style="background: #aa66ff; color: white; padding: 2px 6px; border-radius: 4px; font-size: 12px; font-family: JetBrains Mono; white-space: nowrap; border: 1px solid white;">${spot.call}</div>`,
-              iconAnchor: [20, 10]
-            });
-            const marker = L.marker([spot.lat, spot.lon], { icon })
-              .bindPopup(`<b>${spot.call}</b><br>${spot.ref}<br>${spot.freq} ${spot.mode}`)
-              .addTo(map);
-            potaMarkersRef.current.push(marker);
-          }
-        });
-      }, [potaSpots]);
+        // Add new POTA markers if enabled
+        if (showPOTA && potaSpots) {
+          potaSpots.forEach(spot => {
+            if (spot.lat && spot.lon) {
+              const icon = L.divIcon({
+                className: '',
+                html: `<div style="background: #aa66ff; color: white; padding: 2px 6px; border-radius: 4px; font-size: 12px; font-family: JetBrains Mono; white-space: nowrap; border: 1px solid white;">${spot.call}</div>`,
+                iconAnchor: [20, 10]
+              });
+              const marker = L.marker([spot.lat, spot.lon], { icon })
+                .bindPopup(`<b>${spot.call}</b><br>${spot.ref}<br>${spot.freq} ${spot.mode}`)
+                .addTo(map);
+              potaMarkersRef.current.push(marker);
+            }
+          });
+        }
+      }, [potaSpots, showPOTA]);
 
       // Update satellite markers and tracks
       useEffect(() => {
@@ -1976,53 +1975,65 @@
             ))}
           </select>
           
-          {/* Satellite toggle */}
-          <button
-            onClick={() => setShowSatellites(!showSatellites)}
-            style={{
-              position: 'absolute',
-              top: '10px',
-              left: '50px',
-              background: showSatellites ? 'rgba(0, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.7)',
-              border: `1px solid ${showSatellites ? '#00ffff' : '#666'}`,
-              color: showSatellites ? '#00ffff' : '#888',
-              padding: '6px 10px',
-              borderRadius: '4px',
-              fontSize: '11px',
-              fontFamily: 'JetBrains Mono',
-              cursor: 'pointer',
-              zIndex: 1000,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px'
-            }}
-          >
-            🛰 {showSatellites ? 'SAT' : 'SAT'}
-          </button>
-          
-          {/* DX Paths toggle */}
-          <button
-            onClick={() => setShowDXPaths(!showDXPaths)}
-            style={{
-              position: 'absolute',
-              top: '10px',
-              left: '118px',
-              background: showDXPaths ? 'rgba(68, 136, 255, 0.2)' : 'rgba(0, 0, 0, 0.7)',
-              border: `1px solid ${showDXPaths ? '#4488ff' : '#666'}`,
-              color: showDXPaths ? '#4488ff' : '#888',
-              padding: '6px 10px',
-              borderRadius: '4px',
-              fontSize: '11px',
-              fontFamily: 'JetBrains Mono',
-              cursor: 'pointer',
-              zIndex: 1000,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px'
-            }}
-          >
-            📡 {showDXPaths ? 'DX' : 'DX'}
-          </button>
+          {/* Map Legend - Bottom of map */}
+          <div style={{
+            position: 'absolute',
+            bottom: '8px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'rgba(0, 0, 0, 0.85)',
+            border: '1px solid #444',
+            borderRadius: '6px',
+            padding: '6px 12px',
+            zIndex: 1000,
+            display: 'flex',
+            gap: '12px',
+            alignItems: 'center',
+            fontSize: '10px',
+            fontFamily: 'JetBrains Mono, monospace'
+          }}>
+            {/* DX Paths Band Colors */}
+            {showDXPaths && (
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                <span style={{ color: '#888' }}>DX:</span>
+                <span style={{ color: '#ff6666' }}>160m</span>
+                <span style={{ color: '#ff9966' }}>80m</span>
+                <span style={{ color: '#ffcc66' }}>40m</span>
+                <span style={{ color: '#99ff66' }}>30m</span>
+                <span style={{ color: '#66ff99' }}>20m</span>
+                <span style={{ color: '#66ffcc' }}>17m</span>
+                <span style={{ color: '#66ccff' }}>15m</span>
+                <span style={{ color: '#6699ff' }}>12m</span>
+                <span style={{ color: '#9966ff' }}>10m</span>
+                <span style={{ color: '#ff66ff' }}>6m</span>
+              </div>
+            )}
+            {showDXPaths && (showPOTA || showSatellites) && <span style={{ color: '#444' }}>|</span>}
+            
+            {/* POTA */}
+            {showPOTA && (
+              <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                <div style={{ width: '10px', height: '10px', background: '#aa66ff', borderRadius: '2px' }} />
+                <span style={{ color: '#aa66ff' }}>POTA</span>
+              </div>
+            )}
+            
+            {/* Satellites */}
+            {showSatellites && (
+              <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                <span style={{ color: '#00ffff' }}>🛰</span>
+                <span style={{ color: '#00ffff' }}>SAT</span>
+              </div>
+            )}
+            
+            {/* DE/DX markers */}
+            <span style={{ color: '#444' }}>|</span>
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <span style={{ color: '#00ff00' }}>● DE</span>
+              <span style={{ color: '#ff4444' }}>● DX</span>
+              <span style={{ color: '#ffff00' }}>☀ Sun</span>
+            </div>
+          </div>
         </div>
       );
     };
@@ -2201,13 +2212,32 @@
       );
     };
 
-    const DXClusterPanel = ({ spots, loading, activeSource }) => (
+    const DXClusterPanel = ({ spots, loading, activeSource, showOnMap, onToggleMap }) => (
       <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '20px', backdropFilter: 'blur(10px)', maxHeight: '280px', overflow: 'hidden' }}>
         <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--accent-cyan)', letterSpacing: '2px', marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span>🌐 DX CLUSTER</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             {loading && <div className="loading-spinner" />}
             {activeSource && <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{activeSource}</span>}
+            <button
+              onClick={onToggleMap}
+              style={{
+                background: showOnMap ? 'rgba(68, 136, 255, 0.3)' : 'rgba(100, 100, 100, 0.3)',
+                border: `1px solid ${showOnMap ? '#4488ff' : '#666'}`,
+                color: showOnMap ? '#4488ff' : '#888',
+                padding: '2px 8px',
+                borderRadius: '4px',
+                fontSize: '10px',
+                fontFamily: 'JetBrains Mono',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+              title={showOnMap ? 'Hide DX paths on map' : 'Show DX paths on map'}
+            >
+              🗺️ {showOnMap ? 'ON' : 'OFF'}
+            </button>
             <span style={{ fontSize: '12px', color: 'var(--accent-green)' }}>● LIVE</span>
           </div>
         </div>
@@ -2224,12 +2254,31 @@
       </div>
     );
 
-    const POTAPanel = ({ activities, loading }) => (
+    const POTAPanel = ({ activities, loading, showOnMap, onToggleMap }) => (
       <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '20px', backdropFilter: 'blur(10px)' }}>
         <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--accent-cyan)', letterSpacing: '2px', marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span>🏕 POTA ACTIVITY</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             {loading && <div className="loading-spinner" />}
+            <button
+              onClick={onToggleMap}
+              style={{
+                background: showOnMap ? 'rgba(170, 102, 255, 0.3)' : 'rgba(100, 100, 100, 0.3)',
+                border: `1px solid ${showOnMap ? '#aa66ff' : '#666'}`,
+                color: showOnMap ? '#aa66ff' : '#888',
+                padding: '2px 8px',
+                borderRadius: '4px',
+                fontSize: '10px',
+                fontFamily: 'JetBrains Mono',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+              title={showOnMap ? 'Hide POTA markers on map' : 'Show POTA markers on map'}
+            >
+              🗺️ {showOnMap ? 'ON' : 'OFF'}
+            </button>
             <span style={{ fontSize: '12px', color: 'var(--accent-green)' }}>● LIVE</span>
           </div>
         </div>
@@ -2345,7 +2394,8 @@
       deGrid, dxGrid, deSunTimes, dxSunTimes, dxLocation, onDXChange,
       spaceWeather, bandConditions, potaSpots, dxCluster, dxPaths, contests, propagation, mySpots, satellites,
       localWeather, use12Hour, onTimeFormatToggle,
-      onSettingsClick, onFullscreenToggle, isFullscreen
+      onSettingsClick, onFullscreenToggle, isFullscreen,
+      mapLayers, toggleDXPaths, togglePOTA, toggleSatellites
     }) => {
       const bearing = calculateBearing(config.location.lat, config.location.lon, dxLocation.lat, dxLocation.lon);
       const distance = calculateDistance(config.location.lat, config.location.lon, dxLocation.lat, dxLocation.lon);
@@ -2517,6 +2567,9 @@
               mySpots={mySpots.data}
               dxPaths={dxPaths.data}
               satellites={satellites.positions}
+              showDXPaths={mapLayers.showDXPaths}
+              showPOTA={mapLayers.showPOTA}
+              showSatellites={mapLayers.showSatellites}
             />
           </div>
 
@@ -2525,8 +2578,26 @@
             {/* DX Cluster */}
             <div>
               <div style={{ ...labelStyle, marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>🌐 DX CLUSTER <span style={{ color: 'var(--accent-green)', fontSize: '12px' }}>● LIVE</span></span>
-                {dxCluster.activeSource && <span style={{ fontSize: '9px', color: 'var(--text-muted)', fontWeight: '400' }}>{dxCluster.activeSource}</span>}
+                <span>🌐 DX CLUSTER</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <button
+                    onClick={toggleDXPaths}
+                    style={{
+                      background: mapLayers.showDXPaths ? 'rgba(68, 136, 255, 0.3)' : 'rgba(100, 100, 100, 0.3)',
+                      border: `1px solid ${mapLayers.showDXPaths ? '#4488ff' : '#666'}`,
+                      color: mapLayers.showDXPaths ? '#4488ff' : '#888',
+                      padding: '1px 6px',
+                      borderRadius: '3px',
+                      fontSize: '9px',
+                      fontFamily: 'JetBrains Mono',
+                      cursor: 'pointer'
+                    }}
+                    title={mapLayers.showDXPaths ? 'Hide on map' : 'Show on map'}
+                  >
+                    🗺️ {mapLayers.showDXPaths ? 'ON' : 'OFF'}
+                  </button>
+                  <span style={{ color: 'var(--accent-green)', fontSize: '10px' }}>● LIVE</span>
+                </div>
               </div>
               <div style={{ maxHeight: '180px', overflowY: 'auto' }}>
                 {dxCluster.data.slice(0, 8).map((s, i) => (
@@ -2565,7 +2636,25 @@
 
             {/* POTA */}
             <div style={{ marginTop: '8px' }}>
-              <div style={{ ...labelStyle, marginBottom: '8px' }}>🏕 POTA</div>
+              <div style={{ ...labelStyle, marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>🏕 POTA</span>
+                <button
+                  onClick={togglePOTA}
+                  style={{
+                    background: mapLayers.showPOTA ? 'rgba(170, 102, 255, 0.3)' : 'rgba(100, 100, 100, 0.3)',
+                    border: `1px solid ${mapLayers.showPOTA ? '#aa66ff' : '#666'}`,
+                    color: mapLayers.showPOTA ? '#aa66ff' : '#888',
+                    padding: '1px 6px',
+                    borderRadius: '3px',
+                    fontSize: '9px',
+                    fontFamily: 'JetBrains Mono',
+                    cursor: 'pointer'
+                  }}
+                  title={mapLayers.showPOTA ? 'Hide on map' : 'Show on map'}
+                >
+                  🗺️ {mapLayers.showPOTA ? 'ON' : 'OFF'}
+                </button>
+              </div>
               <div style={{ maxHeight: '100px', overflowY: 'auto' }}>
                 {potaSpots.data.slice(0, 4).map((a, i) => (
                   <div key={i} style={{ padding: '3px 0', fontSize: '12px' }}>
@@ -2990,6 +3079,27 @@
       const [showSettings, setShowSettings] = useState(false);
       const [isFullscreen, setIsFullscreen] = useState(false);
       
+      // Map layer visibility state with localStorage persistence
+      const [mapLayers, setMapLayers] = useState(() => {
+        try {
+          const stored = localStorage.getItem('openhamclock_mapLayers');
+          const defaults = { showDXPaths: true, showPOTA: true, showSatellites: true };
+          return stored ? { ...defaults, ...JSON.parse(stored) } : defaults;
+        } catch (e) { return { showDXPaths: true, showPOTA: true, showSatellites: true }; }
+      });
+      
+      // Save map layer preferences when changed
+      useEffect(() => {
+        try {
+          localStorage.setItem('openhamclock_mapLayers', JSON.stringify(mapLayers));
+        } catch (e) { console.error('Failed to save map layers:', e); }
+      }, [mapLayers]);
+      
+      // Toggle handlers for map layers
+      const toggleDXPaths = useCallback(() => setMapLayers(prev => ({ ...prev, showDXPaths: !prev.showDXPaths })), []);
+      const togglePOTA = useCallback(() => setMapLayers(prev => ({ ...prev, showPOTA: !prev.showPOTA })), []);
+      const toggleSatellites = useCallback(() => setMapLayers(prev => ({ ...prev, showSatellites: !prev.showSatellites })), []);
+      
       // 12/24 hour format preference with localStorage persistence
       const [use12Hour, setUse12Hour] = useState(() => {
         try {
@@ -3125,6 +3235,10 @@
               onSettingsClick={() => setShowSettings(true)}
               onFullscreenToggle={handleFullscreenToggle}
               isFullscreen={isFullscreen}
+              mapLayers={mapLayers}
+              toggleDXPaths={toggleDXPaths}
+              togglePOTA={togglePOTA}
+              toggleSatellites={toggleSatellites}
             />
             <SettingsPanel 
               isOpen={showSettings} 
@@ -3329,7 +3443,18 @@
           
           {/* CENTER - MAP */}
           <div style={{ position: 'relative', borderRadius: '6px', overflow: 'hidden' }}>
-            <WorldMap deLocation={config.location} dxLocation={dxLocation} onDXChange={handleDXChange} potaSpots={potaSpots.data} mySpots={mySpots.data} dxPaths={dxPaths.data} satellites={satellites.positions} />
+            <WorldMap 
+              deLocation={config.location} 
+              dxLocation={dxLocation} 
+              onDXChange={handleDXChange} 
+              potaSpots={potaSpots.data} 
+              mySpots={mySpots.data} 
+              dxPaths={dxPaths.data} 
+              satellites={satellites.positions}
+              showDXPaths={mapLayers.showDXPaths}
+              showPOTA={mapLayers.showPOTA}
+              showSatellites={mapLayers.showSatellites}
+            />
             <div style={{ position: 'absolute', bottom: '8px', left: '50%', transform: 'translateX(-50%)', fontSize: '13px', color: 'var(--text-muted)', background: 'rgba(0,0,0,0.7)', padding: '2px 8px', borderRadius: '4px' }}>
               Click map to set DX • 73 de {config.callsign}
             </div>
@@ -3337,11 +3462,50 @@
           
           {/* RIGHT SIDEBAR */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', overflow: 'hidden' }}>
+            {/* Satellite Toggle at top */}
+            <div className="panel" style={{ padding: '6px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '12px', color: '#00ffff', fontWeight: '700' }}>🛰 SATELLITES</span>
+              <button
+                onClick={toggleSatellites}
+                style={{
+                  background: mapLayers.showSatellites ? 'rgba(0, 255, 255, 0.3)' : 'rgba(100, 100, 100, 0.3)',
+                  border: `1px solid ${mapLayers.showSatellites ? '#00ffff' : '#666'}`,
+                  color: mapLayers.showSatellites ? '#00ffff' : '#888',
+                  padding: '2px 8px',
+                  borderRadius: '4px',
+                  fontSize: '10px',
+                  fontFamily: 'JetBrains Mono',
+                  cursor: 'pointer'
+                }}
+                title={mapLayers.showSatellites ? 'Hide satellites on map' : 'Show satellites on map'}
+              >
+                🗺️ {mapLayers.showSatellites ? 'ON' : 'OFF'}
+              </button>
+            </div>
+            
             {/* DX Cluster - Compact */}
             <div className="panel" style={{ padding: '10px', flex: '1 1 auto', overflow: 'hidden', minHeight: 0 }}>
               <div style={{ fontSize: '12px', color: 'var(--accent-green)', fontWeight: '700', marginBottom: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>🌐 DX CLUSTER <span style={{ color: 'var(--accent-green)', fontSize: '12px' }}>● LIVE</span></span>
-                {dxCluster.activeSource && <span style={{ fontSize: '9px', color: 'var(--text-muted)', fontWeight: '400' }}>{dxCluster.activeSource}</span>}
+                <span>🌐 DX CLUSTER <span style={{ color: 'var(--accent-green)', fontSize: '10px' }}>● LIVE</span></span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <button
+                    onClick={toggleDXPaths}
+                    style={{
+                      background: mapLayers.showDXPaths ? 'rgba(68, 136, 255, 0.3)' : 'rgba(100, 100, 100, 0.3)',
+                      border: `1px solid ${mapLayers.showDXPaths ? '#4488ff' : '#666'}`,
+                      color: mapLayers.showDXPaths ? '#4488ff' : '#888',
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                      fontSize: '10px',
+                      fontFamily: 'JetBrains Mono',
+                      cursor: 'pointer'
+                    }}
+                    title={mapLayers.showDXPaths ? 'Hide on map' : 'Show on map'}
+                  >
+                    🗺️ {mapLayers.showDXPaths ? 'ON' : 'OFF'}
+                  </button>
+                  {dxCluster.activeSource && <span style={{ fontSize: '9px', color: 'var(--text-muted)', fontWeight: '400' }}>{dxCluster.activeSource}</span>}
+                </div>
               </div>
               <div style={{ overflow: 'auto', maxHeight: 'calc(100% - 20px)' }}>
                 {dxCluster.data.slice(0, 8).map((s, i) => (
@@ -3359,7 +3523,25 @@
             
             {/* POTA - Compact */}
             <div className="panel" style={{ padding: '10px', flex: '0 0 auto' }}>
-              <div style={{ fontSize: '12px', color: 'var(--accent-amber)', fontWeight: '700', marginBottom: '6px' }}>🏕 POTA ACTIVATORS</div>
+              <div style={{ fontSize: '12px', color: 'var(--accent-amber)', fontWeight: '700', marginBottom: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>🏕 POTA ACTIVATORS</span>
+                <button
+                  onClick={togglePOTA}
+                  style={{
+                    background: mapLayers.showPOTA ? 'rgba(170, 102, 255, 0.3)' : 'rgba(100, 100, 100, 0.3)',
+                    border: `1px solid ${mapLayers.showPOTA ? '#aa66ff' : '#666'}`,
+                    color: mapLayers.showPOTA ? '#aa66ff' : '#888',
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    fontSize: '10px',
+                    fontFamily: 'JetBrains Mono',
+                    cursor: 'pointer'
+                  }}
+                  title={mapLayers.showPOTA ? 'Hide on map' : 'Show on map'}
+                >
+                  🗺️ {mapLayers.showPOTA ? 'ON' : 'OFF'}
+                </button>
+              </div>
               <div style={{ fontSize: '12px', fontFamily: 'JetBrains Mono' }}>
                 {potaSpots.data.slice(0, 5).map((a, i) => (
                   <div key={i} style={{ padding: '2px 0', display: 'flex', justifyContent: 'space-between' }}>
