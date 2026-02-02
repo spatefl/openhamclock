@@ -99,9 +99,9 @@ export const WorldMap = ({
       maxZoom: 18,
       worldCopyJump: true,
       zoomControl: true,
-      zoomSnap: 0.25,
-      zoomDelta: 0.5,
-      wheelPxPerZoomLevel: 120,
+      zoomSnap: 0.1,
+      zoomDelta: 0.25,
+      wheelPxPerZoomLevel: 200,
       maxBounds: [[-90, -Infinity], [90, Infinity]],
       maxBoundsViscosity: 0.8
     });
