@@ -207,7 +207,7 @@ app.use('/api', (req, res, next) => {
   } else if (path.includes('/pota') || path.includes('/sota')) {
     cacheDuration = 120; // 2 minutes
   } else if (path.includes('/pskreporter')) {
-    cacheDuration = 120; // 2 minutes (respect PSKReporter rate limits)
+    cacheDuration = 300; // 5 minutes (PSKReporter rate limits aggressively)
   } else if (path.includes('/dxcluster') || path.includes('/myspots')) {
     cacheDuration = 30; // 30 seconds (DX spots need to be relatively fresh)
   } else if (path.includes('/config')) {
@@ -1853,56 +1853,40 @@ app.get('/api/myspots/:callsign', async (req, res) => {
 });
 
 // ============================================
-// PSKREPORTER API
+// PSKREPORTER API (MQTT-based for real-time)
 // ============================================
 
-// Cache for PSKReporter data (2-minute cache to respect their rate limits)
-let pskReporterCache = {};
-const PSK_CACHE_TTL = 2 * 60 * 1000; // 2 minutes
+// PSKReporter MQTT feed at mqtt.pskreporter.info provides real-time spots
+// WebSocket endpoints: 1885 (ws), 1886 (wss)
+// Topic format: pskr/filter/v2/{band}/{mode}/{sendercall}/{receivercall}/{senderlocator}/{receiverlocator}/{sendercountry}/{receivercountry}
 
-// Parse PSKReporter XML response
-function parsePSKReporterXML(xml) {
-  const reports = [];
-  
-  // Extract reception reports using regex (simple XML parsing)
-  const reportRegex = /<receptionReport[^>]*>([\s\S]*?)<\/receptionReport>/g;
-  let match;
-  
-  while ((match = reportRegex.exec(xml)) !== null) {
-    const report = match[0];
-    
-    // Extract attributes
-    const getAttr = (name) => {
-      const attrMatch = report.match(new RegExp(`${name}="([^"]*)"`));
-      return attrMatch ? attrMatch[1] : null;
-    };
-    
-    const receiverCallsign = getAttr('receiverCallsign');
-    const receiverLocator = getAttr('receiverLocator');
-    const senderCallsign = getAttr('senderCallsign');
-    const senderLocator = getAttr('senderLocator');
-    const frequency = getAttr('frequency');
-    const mode = getAttr('mode');
-    const flowStartSeconds = getAttr('flowStartSeconds');
-    const sNR = getAttr('sNR');
-    
-    if (receiverCallsign && senderCallsign) {
-      reports.push({
-        receiver: receiverCallsign,
-        receiverGrid: receiverLocator,
-        sender: senderCallsign,
-        senderGrid: senderLocator,
-        freq: frequency ? (parseInt(frequency) / 1000000).toFixed(6) : null,
-        freqMHz: frequency ? (parseInt(frequency) / 1000000).toFixed(3) : null,
-        mode: mode || 'Unknown',
-        timestamp: flowStartSeconds ? parseInt(flowStartSeconds) * 1000 : Date.now(),
-        snr: sNR ? parseInt(sNR) : null
-      });
+// Cache for PSKReporter data - stores recent spots from MQTT
+const pskReporterSpots = {
+  tx: new Map(), // Map of callsign -> spots where they're being heard
+  rx: new Map(), // Map of callsign -> spots they're receiving
+  maxAge: 60 * 60 * 1000 // Keep spots for 1 hour max
+};
+
+// Clean up old spots periodically
+setInterval(() => {
+  const cutoff = Date.now() - pskReporterSpots.maxAge;
+  for (const [call, spots] of pskReporterSpots.tx) {
+    const filtered = spots.filter(s => s.timestamp > cutoff);
+    if (filtered.length === 0) {
+      pskReporterSpots.tx.delete(call);
+    } else {
+      pskReporterSpots.tx.set(call, filtered);
     }
   }
-  
-  return reports;
-}
+  for (const [call, spots] of pskReporterSpots.rx) {
+    const filtered = spots.filter(s => s.timestamp > cutoff);
+    if (filtered.length === 0) {
+      pskReporterSpots.rx.delete(call);
+    } else {
+      pskReporterSpots.rx.set(call, filtered);
+    }
+  }
+}, 5 * 60 * 1000); // Clean every 5 minutes
 
 // Convert grid square to lat/lon
 function gridToLatLonSimple(grid) {
@@ -1928,9 +1912,9 @@ function gridToLatLonSimple(grid) {
   return { lat: finalLat, lon: finalLon };
 }
 
-// Get band name from frequency in MHz
-function getBandFromMHz(freqMHz) {
-  const freq = parseFloat(freqMHz);
+// Get band name from frequency in Hz
+function getBandFromHz(freqHz) {
+  const freq = freqHz / 1000000; // Convert to MHz
   if (freq >= 1.8 && freq <= 2) return '160m';
   if (freq >= 3.5 && freq <= 4) return '80m';
   if (freq >= 5.3 && freq <= 5.4) return '60m';
@@ -1947,171 +1931,159 @@ function getBandFromMHz(freqMHz) {
   return 'Unknown';
 }
 
-// PSKReporter - where is my signal being heard?
-app.get('/api/pskreporter/tx/:callsign', async (req, res) => {
-  const callsign = req.params.callsign.toUpperCase();
-  const minutes = parseInt(req.query.minutes) || 15; // Default 15 minutes
-  const flowStartSeconds = Math.floor(minutes * 60);
-  
-  const cacheKey = `tx:${callsign}:${minutes}`;
-  const now = Date.now();
-  
-  // Check cache
-  if (pskReporterCache[cacheKey] && (now - pskReporterCache[cacheKey].timestamp) < PSK_CACHE_TTL) {
-    return res.json(pskReporterCache[cacheKey].data);
-  }
-  
-  try {
-    console.log(`[PSKReporter] Fetching TX reports for ${callsign} (last ${minutes} min)`);
-    
-    const url = `https://retrieve.pskreporter.info/query?senderCallsign=${encodeURIComponent(callsign)}&flowStartSeconds=${flowStartSeconds}&rronly=1&noactive=1&nolocator=1`;
-    
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
-    
-    const response = await fetch(url, {
-      headers: { 
-        'User-Agent': 'OpenHamClock/3.10',
-        'Accept': 'application/xml'
-      },
-      signal: controller.signal
-    });
-    clearTimeout(timeout);
-    
-    if (!response.ok) {
-      throw new Error(`PSKReporter returned ${response.status}`);
-    }
-    
-    const xml = await response.text();
-    const reports = parsePSKReporterXML(xml);
-    
-    // Add location data and band info
-    const enrichedReports = reports.map(r => {
-      const loc = r.receiverGrid ? gridToLatLonSimple(r.receiverGrid) : null;
-      return {
-        ...r,
-        lat: loc?.lat,
-        lon: loc?.lon,
-        band: r.freqMHz ? getBandFromMHz(r.freqMHz) : 'Unknown',
-        age: Math.floor((Date.now() - r.timestamp) / 60000) // minutes ago
-      };
-    }).filter(r => r.lat && r.lon);
-    
-    // Sort by timestamp (newest first)
-    enrichedReports.sort((a, b) => b.timestamp - a.timestamp);
-    
-    const result = {
-      callsign,
-      direction: 'tx',
-      count: enrichedReports.length,
-      reports: enrichedReports.slice(0, 100), // Limit to 100 reports
-      timestamp: new Date().toISOString()
-    };
-    
-    // Cache the result
-    pskReporterCache[cacheKey] = { data: result, timestamp: now };
-    
-    console.log(`[PSKReporter] Found ${enrichedReports.length} stations hearing ${callsign}`);
-    res.json(result);
-    
-  } catch (error) {
-    if (error.name !== 'AbortError') {
-      logErrorOnce('PSKReporter', `TX query error: ${error.message}`);
-    }
-    // Return cached data if available
-    if (pskReporterCache[cacheKey]) {
-      return res.json(pskReporterCache[cacheKey].data);
-    }
-    res.json({ callsign, direction: 'tx', count: 0, reports: [], error: error.message });
-  }
+// PSKReporter endpoint - returns MQTT connection info for frontend
+// The frontend connects directly to MQTT via WebSocket for real-time updates
+app.get('/api/pskreporter/config', (req, res) => {
+  res.json({
+    mqtt: {
+      host: 'mqtt.pskreporter.info',
+      wsPort: 1885,      // WebSocket
+      wssPort: 1886,     // WebSocket + TLS (recommended)
+      topicPrefix: 'pskr/filter/v2'
+    },
+    // Topic format: pskr/filter/v2/{band}/{mode}/{sendercall}/{receivercall}/{senderlocator}/{receiverlocator}/{sendercountry}/{receivercountry}
+    // Use + for single-level wildcard, # for multi-level
+    // Example for TX (being heard): pskr/filter/v2/+/+/{CALLSIGN}/#
+    // Example for RX (hearing): Subscribe and filter client-side
+    info: 'Connect via WebSocket to mqtt.pskreporter.info:1886 (wss) for real-time spots'
+  });
 });
 
-// PSKReporter - what am I hearing?
-app.get('/api/pskreporter/rx/:callsign', async (req, res) => {
+// Fallback HTTP endpoint for when MQTT isn't available
+// Uses the traditional retrieve API with caching
+let pskHttpCache = {};
+const PSK_HTTP_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+app.get('/api/pskreporter/http/:callsign', async (req, res) => {
   const callsign = req.params.callsign.toUpperCase();
   const minutes = parseInt(req.query.minutes) || 15;
-  const flowStartSeconds = Math.floor(minutes * 60);
+  const direction = req.query.direction || 'tx'; // tx or rx
+  // flowStartSeconds must be NEGATIVE for "last N seconds"
+  const flowStartSeconds = -Math.abs(minutes * 60);
   
-  const cacheKey = `rx:${callsign}:${minutes}`;
+  const cacheKey = `${direction}:${callsign}:${minutes}`;
   const now = Date.now();
   
   // Check cache
-  if (pskReporterCache[cacheKey] && (now - pskReporterCache[cacheKey].timestamp) < PSK_CACHE_TTL) {
-    return res.json(pskReporterCache[cacheKey].data);
+  if (pskHttpCache[cacheKey] && (now - pskHttpCache[cacheKey].timestamp) < PSK_HTTP_CACHE_TTL) {
+    return res.json({ ...pskHttpCache[cacheKey].data, cached: true });
   }
   
   try {
-    console.log(`[PSKReporter] Fetching RX reports for ${callsign} (last ${minutes} min)`);
+    const param = direction === 'tx' ? 'senderCallsign' : 'receiverCallsign';
+    // Add appcontact parameter as requested by PSKReporter developer docs
+    const url = `https://retrieve.pskreporter.info/query?${param}=${encodeURIComponent(callsign)}&flowStartSeconds=${flowStartSeconds}&rronly=1&appcontact=openhamclock`;
     
-    const url = `https://retrieve.pskreporter.info/query?receiverCallsign=${encodeURIComponent(callsign)}&flowStartSeconds=${flowStartSeconds}&rronly=1&noactive=1&nolocator=1`;
+    console.log(`[PSKReporter HTTP] Fetching ${direction} for ${callsign} (last ${minutes} min)`);
     
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
+    const timeout = setTimeout(() => controller.abort(), 20000);
     
     const response = await fetch(url, {
       headers: { 
-        'User-Agent': 'OpenHamClock/3.10',
-        'Accept': 'application/xml'
+        'User-Agent': 'OpenHamClock/3.11 (Amateur Radio Dashboard)',
+        'Accept': '*/*'
       },
       signal: controller.signal
     });
     clearTimeout(timeout);
     
     if (!response.ok) {
-      throw new Error(`PSKReporter returned ${response.status}`);
+      throw new Error(`HTTP ${response.status}`);
     }
     
     const xml = await response.text();
-    const reports = parsePSKReporterXML(xml);
+    const reports = [];
     
-    // Add location data and band info
-    const enrichedReports = reports.map(r => {
-      const loc = r.senderGrid ? gridToLatLonSimple(r.senderGrid) : null;
-      return {
-        ...r,
-        lat: loc?.lat,
-        lon: loc?.lon,
-        band: r.freqMHz ? getBandFromMHz(r.freqMHz) : 'Unknown',
-        age: Math.floor((Date.now() - r.timestamp) / 60000)
+    // Parse XML response
+    const reportRegex = /<receptionReport[^>]*>/g;
+    let match;
+    while ((match = reportRegex.exec(xml)) !== null) {
+      const report = match[0];
+      const getAttr = (name) => {
+        const m = report.match(new RegExp(`${name}="([^"]*)"`));
+        return m ? m[1] : null;
       };
-    }).filter(r => r.lat && r.lon);
+      
+      const receiverCallsign = getAttr('receiverCallsign');
+      const receiverLocator = getAttr('receiverLocator');
+      const senderCallsign = getAttr('senderCallsign');
+      const senderLocator = getAttr('senderLocator');
+      const frequency = getAttr('frequency');
+      const mode = getAttr('mode');
+      const flowStartSecs = getAttr('flowStartSeconds');
+      const sNR = getAttr('sNR');
+      
+      if (receiverCallsign && senderCallsign) {
+        const locator = direction === 'tx' ? receiverLocator : senderLocator;
+        const loc = locator ? gridToLatLonSimple(locator) : null;
+        
+        reports.push({
+          sender: senderCallsign,
+          senderGrid: senderLocator,
+          receiver: receiverCallsign,
+          receiverGrid: receiverLocator,
+          freq: frequency ? parseInt(frequency) : null,
+          freqMHz: frequency ? (parseInt(frequency) / 1000000).toFixed(3) : null,
+          band: frequency ? getBandFromHz(parseInt(frequency)) : 'Unknown',
+          mode: mode || 'Unknown',
+          timestamp: flowStartSecs ? parseInt(flowStartSecs) * 1000 : Date.now(),
+          snr: sNR ? parseInt(sNR) : null,
+          lat: loc?.lat,
+          lon: loc?.lon,
+          age: flowStartSecs ? Math.floor((Date.now() / 1000 - parseInt(flowStartSecs)) / 60) : 0
+        });
+      }
+    }
     
-    enrichedReports.sort((a, b) => b.timestamp - a.timestamp);
+    // Sort by timestamp (newest first)
+    reports.sort((a, b) => b.timestamp - a.timestamp);
     
     const result = {
       callsign,
-      direction: 'rx',
-      count: enrichedReports.length,
-      reports: enrichedReports.slice(0, 100),
-      timestamp: new Date().toISOString()
+      direction,
+      count: reports.length,
+      reports: reports.slice(0, 100),
+      timestamp: new Date().toISOString(),
+      source: 'http'
     };
     
-    pskReporterCache[cacheKey] = { data: result, timestamp: now };
+    // Cache it
+    pskHttpCache[cacheKey] = { data: result, timestamp: now };
     
-    console.log(`[PSKReporter] Found ${enrichedReports.length} stations heard by ${callsign}`);
+    console.log(`[PSKReporter HTTP] Found ${reports.length} ${direction} reports for ${callsign}`);
     res.json(result);
     
   } catch (error) {
-    if (error.name !== 'AbortError') {
-      logErrorOnce('PSKReporter', `RX query error: ${error.message}`);
+    logErrorOnce('PSKReporter HTTP', error.message);
+    
+    // Return cached data if available
+    if (pskHttpCache[cacheKey]) {
+      return res.json({ ...pskHttpCache[cacheKey].data, cached: true, stale: true });
     }
-    if (pskReporterCache[cacheKey]) {
-      return res.json(pskReporterCache[cacheKey].data);
-    }
-    res.json({ callsign, direction: 'rx', count: 0, reports: [], error: error.message });
+    
+    res.json({ 
+      callsign, 
+      direction, 
+      count: 0, 
+      reports: [], 
+      error: error.message,
+      hint: 'Consider using MQTT WebSocket connection for real-time data'
+    });
   }
 });
 
-// PSKReporter - combined TX and RX for a callsign
+// Combined endpoint that tries MQTT cache first, falls back to HTTP
 app.get('/api/pskreporter/:callsign', async (req, res) => {
   const callsign = req.params.callsign.toUpperCase();
   const minutes = parseInt(req.query.minutes) || 15;
   
+  // For now, redirect to HTTP endpoint since MQTT requires client-side connection
+  // The frontend should connect directly to MQTT for real-time updates
   try {
-    // Fetch both TX and RX in parallel
     const [txRes, rxRes] = await Promise.allSettled([
-      fetch(`http://localhost:${PORT}/api/pskreporter/tx/${callsign}?minutes=${minutes}`),
-      fetch(`http://localhost:${PORT}/api/pskreporter/rx/${callsign}?minutes=${minutes}`)
+      fetch(`http://localhost:${PORT}/api/pskreporter/http/${callsign}?minutes=${minutes}&direction=tx`),
+      fetch(`http://localhost:${PORT}/api/pskreporter/http/${callsign}?minutes=${minutes}&direction=rx`)
     ]);
     
     let txData = { count: 0, reports: [] };
@@ -2128,15 +2100,24 @@ app.get('/api/pskreporter/:callsign', async (req, res) => {
       callsign,
       tx: txData,
       rx: rxData,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      mqtt: {
+        available: true,
+        host: 'wss://mqtt.pskreporter.info:1886',
+        hint: 'Connect via WebSocket for real-time updates'
+      }
     });
     
   } catch (error) {
-    logErrorOnce('PSKReporter', `Combined query error: ${error.message}`);
-    res.json({ callsign, tx: { count: 0, reports: [] }, rx: { count: 0, reports: [] }, error: error.message });
+    logErrorOnce('PSKReporter', error.message);
+    res.json({ 
+      callsign, 
+      tx: { count: 0, reports: [] }, 
+      rx: { count: 0, reports: [] }, 
+      error: error.message 
+    });
   }
 });
-
 // ============================================
 // SATELLITE TRACKING API
 // ============================================

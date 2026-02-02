@@ -147,13 +147,21 @@ const PSKReporterPanel = ({ callsign, onShowOnMap }) => {
       </div>
 
       <div className="panel-content" style={{ maxHeight: '300px', overflowY: 'auto' }}>
-        {loading && reports.length === 0 ? (
+        {error ? (
+          <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>
+            <div style={{ marginBottom: '8px' }}>⚠️ PSKReporter temporarily unavailable</div>
+            <div style={{ fontSize: '0.7rem' }}>Will retry automatically</div>
+          </div>
+        ) : loading && reports.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>
             Loading...
           </div>
         ) : reports.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>
             No {activeTab === 'tx' ? 'reception reports' : 'stations heard'} in the last {timeWindow} minutes
+            <div style={{ fontSize: '0.65rem', marginTop: '8px' }}>
+              (Make sure you're transmitting digital modes like FT8)
+            </div>
           </div>
         ) : (
           <>
