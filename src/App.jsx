@@ -262,7 +262,7 @@ const App = () => {
                 Up 35d 18h • v4.20
               </div>
               <div style={{ marginTop: '8px' }}>
-                <div style={{ fontSize: '36px', fontWeight: '700', color: '#00ff00', fontFamily: 'Orbitron, monospace', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
+                <div style={{ fontSize: '36px', fontWeight: '700', color: '#00ff00', fontFamily: 'JetBrains Mono, Consolas, monospace', lineHeight: 1, width: '180px' }}>
                   {utcTime}<span style={{ fontSize: '20px', color: '#00cc00' }}>:{String(new Date().getUTCSeconds()).padStart(2, '0')}</span>
                 </div>
                 <div style={{ fontSize: '14px', color: '#00cc00', marginTop: '2px' }}>
