@@ -6,7 +6,11 @@ import { useState, useEffect } from 'react';
  * Visualizes global WSPR (Weak Signal Propagation Reporter) activity as:
  * - Path lines between transmitters and receivers
  * - Color-coded by signal strength (SNR)
+ * - Optional band filtering
  * - Real-time propagation visualization
+ * 
+ * Data source: PSK Reporter API (WSPR mode spots)
+ * Update interval: 5 minutes
  */
 
 export const metadata = {
@@ -20,7 +24,30 @@ export const metadata = {
   version: '1.0.0'
 };
 
-// Get color based on SNR (Signal-to-Noise Ratio)
+// Convert grid square to lat/lon
+function gridToLatLon(grid) {
+  if (!grid || grid.length < 4) return null;
+  
+  grid = grid.toUpperCase();
+  const lon = (grid.charCodeAt(0) - 65) * 20 - 180;
+  const lat = (grid.charCodeAt(1) - 65) * 10 - 90;
+  const lon2 = parseInt(grid[2]) * 2;
+  const lat2 = parseInt(grid[3]);
+  
+  let longitude = lon + lon2 + 1;
+  let latitude = lat + lat2 + 0.5;
+  
+  if (grid.length >= 6) {
+    const lon3 = (grid.charCodeAt(4) - 65) * (2/24);
+    const lat3 = (grid.charCodeAt(5) - 65) * (1/24);
+    longitude = lon + lon2 + lon3 + (1/24);
+    latitude = lat + lat2 + lat3 + (0.5/24);
+  }
+  
+  return { lat: latitude, lon: longitude };
+}
+
+// Get color based on SNR
 function getSNRColor(snr) {
   if (snr === null || snr === undefined) return '#888888';
   if (snr < -20) return '#ff0000';
@@ -44,6 +71,7 @@ export function useLayer({ enabled = false, opacity = 0.7, map = null }) {
   const [pathLayers, setPathLayers] = useState([]);
   const [markerLayers, setMarkerLayers] = useState([]);
   const [wsprData, setWsprData] = useState([]);
+  const [bandFilter] = useState('all');
 
   // Fetch WSPR data
   useEffect(() => {
@@ -51,7 +79,7 @@ export function useLayer({ enabled = false, opacity = 0.7, map = null }) {
 
     const fetchWSPR = async () => {
       try {
-        const response = await fetch('/api/wspr/heatmap?minutes=30&band=all');
+        const response = await fetch(`/api/wspr/heatmap?minutes=30&band=${bandFilter}`);
         if (response.ok) {
           const data = await response.json();
           setWsprData(data.spots || []);
@@ -64,19 +92,23 @@ export function useLayer({ enabled = false, opacity = 0.7, map = null }) {
 
     fetchWSPR();
     const interval = setInterval(fetchWSPR, 300000);
+
     return () => clearInterval(interval);
-  }, [enabled]);
+  }, [enabled, bandFilter]);
 
   // Render WSPR paths on map
   useEffect(() => {
     if (!map || typeof L === 'undefined') return;
 
-    // Clear old layers
     pathLayers.forEach(layer => {
-      try { map.removeLayer(layer); } catch (e) {}
+      try {
+        map.removeLayer(layer);
+      } catch (e) {}
     });
     markerLayers.forEach(layer => {
-      try { map.removeLayer(layer); } catch (e) {}
+      try {
+        map.removeLayer(layer);
+      } catch (e) {}
     });
     setPathLayers([]);
     setMarkerLayers([]);
@@ -85,14 +117,13 @@ export function useLayer({ enabled = false, opacity = 0.7, map = null }) {
 
     const newPaths = [];
     const newMarkers = [];
+    
     const txStations = new Set();
     const rxStations = new Set();
 
-    // Limit to most recent 500 spots for performance
     const limitedData = wsprData.slice(0, 500);
 
     limitedData.forEach(spot => {
-      // Draw path line from sender to receiver
       const path = L.polyline(
         [
           [spot.senderLat, spot.senderLon],
@@ -106,12 +137,11 @@ export function useLayer({ enabled = false, opacity = 0.7, map = null }) {
         }
       );
 
-      // Add popup to path
       const snrStr = spot.snr !== null ? `${spot.snr} dB` : 'N/A';
       const ageStr = spot.age < 60 ? `${spot.age} min ago` : `${Math.floor(spot.age / 60)}h ago`;
       
       path.bindPopup(`
-        <div style="font-family: monospace; min-width: 220px;">
+        <div style="font-family: 'JetBrains Mono', monospace; min-width: 220px;">
           <div style="font-size: 14px; font-weight: bold; color: ${getSNRColor(spot.snr)}; margin-bottom: 6px;">
             📡 WSPR Spot
           </div>
@@ -128,10 +158,10 @@ export function useLayer({ enabled = false, opacity = 0.7, map = null }) {
       path.addTo(map);
       newPaths.push(path);
 
-      // Add transmitter marker
       const txKey = `${spot.sender}-${spot.senderGrid}`;
       if (!txStations.has(txKey)) {
         txStations.add(txKey);
+        
         const txMarker = L.circleMarker([spot.senderLat, spot.senderLon], {
           radius: 4,
           fillColor: '#ff6600',
@@ -140,15 +170,16 @@ export function useLayer({ enabled = false, opacity = 0.7, map = null }) {
           fillOpacity: opacity * 0.8,
           opacity: opacity
         });
+
         txMarker.bindTooltip(`TX: ${spot.sender}`, { permanent: false, direction: 'top' });
         txMarker.addTo(map);
         newMarkers.push(txMarker);
       }
 
-      // Add receiver marker
       const rxKey = `${spot.receiver}-${spot.receiverGrid}`;
       if (!rxStations.has(rxKey)) {
         rxStations.add(rxKey);
+        
         const rxMarker = L.circleMarker([spot.receiverLat, spot.receiverLon], {
           radius: 4,
           fillColor: '#0088ff',
@@ -157,6 +188,7 @@ export function useLayer({ enabled = false, opacity = 0.7, map = null }) {
           fillOpacity: opacity * 0.8,
           opacity: opacity
         });
+
         rxMarker.bindTooltip(`RX: ${spot.receiver}`, { permanent: false, direction: 'top' });
         rxMarker.addTo(map);
         newMarkers.push(rxMarker);
@@ -165,19 +197,23 @@ export function useLayer({ enabled = false, opacity = 0.7, map = null }) {
 
     setPathLayers(newPaths);
     setMarkerLayers(newMarkers);
+    
     console.log(`[WSPR Plugin] Rendered ${newPaths.length} paths, ${newMarkers.length} markers`);
 
     return () => {
       newPaths.forEach(layer => {
-        try { map.removeLayer(layer); } catch (e) {}
+        try {
+          map.removeLayer(layer);
+        } catch (e) {}
       });
       newMarkers.forEach(layer => {
-        try { map.removeLayer(layer); } catch (e) {}
+        try {
+          map.removeLayer(layer);
+        } catch (e) {}
       });
     };
   }, [enabled, wsprData, map, opacity]);
 
-  // Update opacity when it changes
   useEffect(() => {
     pathLayers.forEach(layer => {
       if (layer.setStyle) {
