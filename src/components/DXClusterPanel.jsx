@@ -4,6 +4,7 @@
  */
 import React from 'react';
 import { getBandColor } from '../utils/callsign.js';
+import { IconSearch, IconMap, IconGlobe } from './Icons.jsx';
 
 export const DXClusterPanel = ({ 
   data, 
@@ -52,11 +53,12 @@ export const DXClusterPanel = ({
         justifyContent: 'space-between', 
         alignItems: 'center' 
       }}>
-        <span>🌐 DX CLUSTER <span style={{ color: 'var(--accent-green)', fontSize: '10px' }}>● LIVE</span></span>
+        <span><IconGlobe size={12} style={{ verticalAlign: 'middle', marginRight: '4px' }} />DX CLUSTER <span style={{ color: 'var(--accent-green)', fontSize: '10px' }}>● LIVE</span></span>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <span style={{ fontSize: '9px', color: 'var(--text-muted)' }}>{spots.length}/{totalSpots || spots.length}</span>
           <button
             onClick={onOpenFilters}
+            title="Filter DX spots by band, mode, or continent"
             style={{
               background: filterCount > 0 ? 'rgba(255, 170, 0, 0.3)' : 'rgba(100, 100, 100, 0.3)',
               border: `1px solid ${filterCount > 0 ? '#ffaa00' : '#666'}`,
@@ -68,10 +70,11 @@ export const DXClusterPanel = ({
               cursor: 'pointer'
             }}
           >
-            🔍 Filters
+            <IconSearch size={10} style={{ verticalAlign: 'middle', marginRight: '3px' }} />Filters
           </button>
           <button
             onClick={onToggleMap}
+            title={showOnMap ? 'Hide DX spots on map' : 'Show DX spots on map'}
             style={{
               background: showOnMap ? 'rgba(68, 136, 255, 0.3)' : 'rgba(100, 100, 100, 0.3)',
               border: `1px solid ${showOnMap ? '#4488ff' : '#666'}`,
@@ -83,7 +86,7 @@ export const DXClusterPanel = ({
               cursor: 'pointer'
             }}
           >
-            🗺️ {showOnMap ? 'ON' : 'OFF'}
+            <IconMap size={10} style={{ verticalAlign: 'middle', marginRight: '3px' }} />{showOnMap ? 'ON' : 'OFF'}
           </button>
         </div>
       </div>

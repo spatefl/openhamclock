@@ -13,6 +13,7 @@ import {
 import { filterDXPaths, getBandColor } from '../utils/callsign.js';
 
 import { getAllLayers } from '../plugins/layerRegistry.js';
+import { IconSatellite, IconTag, IconSun, IconMoon } from './Icons.jsx';
 import PluginLayer from './PluginLayer.jsx';
 import { DXNewsTicker } from './DXNewsTicker.jsx';
 
@@ -299,24 +300,24 @@ export const WorldMap = ({
     const sunPos = getSunPosition(new Date());
     const sunIcon = L.divIcon({
       className: 'custom-marker sun-marker',
-      html: '☀',
+      html: '☼',
       iconSize: [24, 24],
       iconAnchor: [12, 12]
     });
     sunMarkerRef.current = L.marker([sunPos.lat, sunPos.lon], { icon: sunIcon })
-      .bindPopup(`<b>☀ Subsolar Point</b><br>${sunPos.lat.toFixed(2)}°, ${sunPos.lon.toFixed(2)}°`)
+      .bindPopup(`<b>☼ Subsolar Point</b><br>${sunPos.lat.toFixed(2)}°, ${sunPos.lon.toFixed(2)}°`)
       .addTo(map);
 
     // Moon marker
     const moonPos = getMoonPosition(new Date());
     const moonIcon = L.divIcon({
       className: 'custom-marker moon-marker',
-      html: '🌙',
+      html: '☽',
       iconSize: [24, 24],
       iconAnchor: [12, 12]
     });
     moonMarkerRef.current = L.marker([moonPos.lat, moonPos.lon], { icon: moonIcon })
-      .bindPopup(`<b>🌙 Sublunar Point</b><br>${moonPos.lat.toFixed(2)}°, ${moonPos.lon.toFixed(2)}°`)
+      .bindPopup(`<b>☽ Sublunar Point</b><br>${moonPos.lat.toFixed(2)}°, ${moonPos.lon.toFixed(2)}°`)
       .addTo(map);
   }, [deLocation, dxLocation]);
 
@@ -480,14 +481,14 @@ export const WorldMap = ({
         // Add satellite marker icon
         const icon = L.divIcon({
           className: '',
-          html: `<span style="display:inline-block;background:${sat.visible ? satColor : satColorDark};color:${sat.visible ? '#000' : '#fff'};padding:4px 8px;border-radius:4px;font-size:11px;font-family:'JetBrains Mono',monospace;white-space:nowrap;border:2px solid ${sat.visible ? '#fff' : '#666'};font-weight:bold;box-shadow:0 2px 4px rgba(0,0,0,0.4);">🛰 ${sat.name}</span>`,
+          html: `<span style="display:inline-block;background:${sat.visible ? satColor : satColorDark};color:${sat.visible ? '#000' : '#fff'};padding:4px 8px;border-radius:4px;font-size:11px;font-family:'JetBrains Mono',monospace;white-space:nowrap;border:2px solid ${sat.visible ? '#fff' : '#666'};font-weight:bold;box-shadow:0 2px 4px rgba(0,0,0,0.4);">⛊ ${sat.name}</span>`,
           iconSize: null,
           iconAnchor: [0, 0]
         });
         
         const marker = L.marker([sat.lat, sat.lon], { icon })
           .bindPopup(`
-            <b>🛰 ${sat.name}</b><br>
+            <b>⛊ ${sat.name}</b><br>
             <table style="font-size: 11px;">
               <tr><td>Mode:</td><td><b>${sat.mode || 'Unknown'}</b></td></tr>
               <tr><td>Alt:</td><td>${sat.alt} km</td></tr>
@@ -777,6 +778,7 @@ export const WorldMap = ({
       {onToggleSatellites && (
         <button
           onClick={onToggleSatellites}
+          title={showSatellites ? 'Hide satellite tracks' : 'Show satellite tracks'}
           style={{
             position: 'absolute',
             top: '10px',
@@ -792,7 +794,7 @@ export const WorldMap = ({
             zIndex: 1000
           }}
         >
-          🛰 SAT {showSatellites ? 'ON' : 'OFF'}
+          ⛊ SAT {showSatellites ? 'ON' : 'OFF'}
         </button>
       )}
       
@@ -800,6 +802,7 @@ export const WorldMap = ({
       {onToggleDXLabels && showDXPaths && (
         <button
           onClick={onToggleDXLabels}
+          title={showDXLabels ? 'Hide callsign labels on map' : 'Show callsign labels on map'}
           style={{
             position: 'absolute',
             top: '10px',
@@ -815,7 +818,7 @@ export const WorldMap = ({
             zIndex: 1000
           }}
         >
-          🏷️ CALLS {showDXLabels ? 'ON' : 'OFF'}
+          ⊞ CALLS {showDXLabels ? 'ON' : 'OFF'}
         </button>
       )}
       
@@ -856,8 +859,8 @@ export const WorldMap = ({
           </div>
         )}
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <span style={{ background: '#00aaff', color: '#000', padding: '2px 5px', borderRadius: '3px', fontWeight: '600' }}>● DE</span>
-          <span style={{ background: '#ff8800', color: '#000', padding: '2px 5px', borderRadius: '3px', fontWeight: '600' }}>● DX</span>
+          <span style={{ background: 'var(--accent-amber)', color: '#000', padding: '2px 5px', borderRadius: '3px', fontWeight: '600' }}>● DE</span>
+          <span style={{ background: '#00aaff', color: '#000', padding: '2px 5px', borderRadius: '3px', fontWeight: '600' }}>● DX</span>
         </div>
         {showPOTA && (
           <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
@@ -865,8 +868,8 @@ export const WorldMap = ({
           </div>
         )}
         <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-          <span style={{ color: '#ffcc00' }}>☀ Sun</span>
-          <span style={{ color: '#aaaaaa' }}>🌙 Moon</span>
+          <span style={{ color: '#ffcc00' }}>☼ Sun</span>
+          <span style={{ color: '#aaaaaa' }}>☽ Moon</span>
         </div>
       </div>
     </div>

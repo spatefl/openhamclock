@@ -14,9 +14,10 @@ export const POTAPanel = ({ data, loading, showOnMap, onToggleMap }) => {
         marginBottom: '6px',
         fontSize: '11px'
       }}>
-        <span>🏕️ POTA ACTIVATORS</span>
+        <span>△ POTA ACTIVATORS</span>
         <button
           onClick={onToggleMap}
+          title={showOnMap ? 'Hide POTA activators on map' : 'Show POTA activators on map'}
           style={{
             background: showOnMap ? 'rgba(170, 102, 255, 0.3)' : 'rgba(100, 100, 100, 0.3)',
             border: `1px solid ${showOnMap ? '#aa66ff' : '#666'}`,
@@ -28,7 +29,7 @@ export const POTAPanel = ({ data, loading, showOnMap, onToggleMap }) => {
             cursor: 'pointer'
           }}
         >
-          🗺️ {showOnMap ? 'ON' : 'OFF'}
+          ⊞ Map {showOnMap ? 'ON' : 'OFF'}
         </button>
       </div>
       

@@ -15,7 +15,7 @@ export const SpaceWeatherPanel = ({ data, loading }) => {
 
   return (
     <div className="panel" style={{ padding: '12px' }}>
-      <div className="panel-header">☀️ SPACE WEATHER</div>
+      <div className="panel-header">☼ SPACE WEATHER</div>
       {loading ? (
         <div style={{ display: 'flex', justifyContent: 'center', padding: '20px' }}>
           <div className="loading-spinner" />

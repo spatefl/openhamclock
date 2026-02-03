@@ -1,6 +1,11 @@
 /**
  * useLocalWeather Hook
  * Fetches detailed weather data from Open-Meteo API (free, no API key)
+ * 
+ * Always fetches in metric (Celsius, km/h, mm) and converts client-side.
+ * This prevents rounding drift when toggling F↔C (the old approach refetched
+ * the API in the new unit, Math.round'd, then back-converted in the header,
+ * causing ±1° drift each toggle).
  */
 import { useState, useEffect } from 'react';
 
@@ -43,25 +48,31 @@ function windDirection(deg) {
   return dirs[Math.round(deg / 22.5) % 16];
 }
 
+// Conversion helpers — always from Celsius/metric base
+const cToF = (c) => c * 9 / 5 + 32;
+const kmhToMph = (k) => k * 0.621371;
+const mmToInch = (mm) => mm * 0.0393701;
+const kmToMi = (km) => km * 0.621371;
+
 export const useLocalWeather = (location, tempUnit = 'F') => {
-  const [data, setData] = useState(null);
+  const [rawData, setRawData] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Fetch always in metric — only depends on location, NOT tempUnit
   useEffect(() => {
     if (!location?.lat || !location?.lon) return;
 
     const fetchWeather = async () => {
       try {
-        const isMetric = tempUnit === 'C';
         const params = [
           `latitude=${location.lat}`,
           `longitude=${location.lon}`,
           'current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,cloud_cover,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m,precipitation,uv_index,visibility,dew_point_2m,is_day',
           'daily=temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,weather_code,sunrise,sunset,uv_index_max,wind_speed_10m_max',
           'hourly=temperature_2m,precipitation_probability,weather_code',
-          `temperature_unit=${isMetric ? 'celsius' : 'fahrenheit'}`,
-          `wind_speed_unit=${isMetric ? 'kmh' : 'mph'}`,
-          `precipitation_unit=${isMetric ? 'mm' : 'inch'}`,
+          'temperature_unit=celsius',
+          'wind_speed_unit=kmh',
+          'precipitation_unit=mm',
           'timezone=auto',
           'forecast_days=3',
           'forecast_hours=24',
@@ -72,83 +83,8 @@ export const useLocalWeather = (location, tempUnit = 'F') => {
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const result = await response.json();
         
-        const current = result.current || {};
-        const code = current.weather_code;
-        const weather = WEATHER_CODES[code] || { desc: 'Unknown', icon: '🌡️' };
-        const daily = result.daily || {};
-        const hourly = result.hourly || {};
-        
-        // Build hourly forecast (next 24h in 3h intervals)
-        const hourlyForecast = [];
-        if (hourly.time && hourly.temperature_2m) {
-          for (let i = 0; i < Math.min(24, hourly.time.length); i += 3) {
-            const hCode = hourly.weather_code?.[i];
-            const hWeather = WEATHER_CODES[hCode] || { desc: '', icon: '🌡️' };
-            hourlyForecast.push({
-              time: new Date(hourly.time[i]).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
-              temp: Math.round(hourly.temperature_2m[i]),
-              precipProb: hourly.precipitation_probability?.[i] || 0,
-              icon: hWeather.icon,
-            });
-          }
-        }
-        
-        // Build daily forecast
-        const dailyForecast = [];
-        if (daily.time) {
-          for (let i = 0; i < Math.min(3, daily.time.length); i++) {
-            const dCode = daily.weather_code?.[i];
-            const dWeather = WEATHER_CODES[dCode] || { desc: '', icon: '🌡️' };
-            dailyForecast.push({
-              date: new Date(daily.time[i] + 'T12:00:00').toLocaleDateString([], { weekday: 'short' }),
-              high: Math.round(daily.temperature_2m_max?.[i] || 0),
-              low: Math.round(daily.temperature_2m_min?.[i] || 0),
-              precipProb: daily.precipitation_probability_max?.[i] || 0,
-              precipSum: daily.precipitation_sum?.[i] || 0,
-              icon: dWeather.icon,
-              desc: dWeather.desc,
-              windMax: Math.round(daily.wind_speed_10m_max?.[i] || 0),
-              uvMax: daily.uv_index_max?.[i] || 0,
-            });
-          }
-        }
-        
-        setData({
-          // Current conditions
-          temp: Math.round(current.temperature_2m || 0),
-          feelsLike: Math.round(current.apparent_temperature || 0),
-          description: weather.desc,
-          icon: weather.icon,
-          humidity: Math.round(current.relative_humidity_2m || 0),
-          dewPoint: Math.round(current.dew_point_2m || 0),
-          pressure: current.pressure_msl ? current.pressure_msl.toFixed(1) : null,
-          cloudCover: current.cloud_cover || 0,
-          windSpeed: Math.round(current.wind_speed_10m || 0),
-          windDir: windDirection(current.wind_direction_10m),
-          windDirDeg: current.wind_direction_10m || 0,
-          windGusts: Math.round(current.wind_gusts_10m || 0),
-          precipitation: current.precipitation || 0,
-          uvIndex: current.uv_index || 0,
-          visibility: current.visibility 
-            ? isMetric 
-              ? (current.visibility / 1000).toFixed(1)  // meters to km
-              : (current.visibility / 1609.34).toFixed(1) // meters to miles
-            : null,
-          isDay: current.is_day === 1,
-          weatherCode: code,
-          // Today's highs/lows
-          todayHigh: daily.temperature_2m_max?.[0] ? Math.round(daily.temperature_2m_max[0]) : null,
-          todayLow: daily.temperature_2m_min?.[0] ? Math.round(daily.temperature_2m_min[0]) : null,
-          // Forecasts
-          hourly: hourlyForecast,
-          daily: dailyForecast,
-          // Timezone
-          timezone: result.timezone || '',
-          // Units
-          tempUnit: isMetric ? 'C' : 'F',
-          windUnit: isMetric ? 'km/h' : 'mph',
-          visUnit: isMetric ? 'km' : 'mi',
-        });
+        // Store raw metric values — conversion happens at read time
+        setRawData(result);
       } catch (err) {
         console.error('Weather error:', err);
       } finally {
@@ -159,7 +95,107 @@ export const useLocalWeather = (location, tempUnit = 'F') => {
     fetchWeather();
     const interval = setInterval(fetchWeather, 15 * 60 * 1000); // 15 minutes
     return () => clearInterval(interval);
-  }, [location?.lat, location?.lon, tempUnit]);
+  }, [location?.lat, location?.lon]); // Note: no tempUnit dependency
+
+  // Convert raw API data to display data based on current tempUnit
+  // This runs on every render where tempUnit changes — instant, no API call
+  const data = (() => {
+    if (!rawData) return null;
+
+    const isMetric = tempUnit === 'C';
+    const current = rawData.current || {};
+    const daily = rawData.daily || {};
+    const hourly = rawData.hourly || {};
+    const code = current.weather_code;
+    const weather = WEATHER_CODES[code] || { desc: 'Unknown', icon: '🌡️' };
+
+    // Temperature conversion (raw is always Celsius)
+    const convTemp = (c) => c == null ? null : Math.round(isMetric ? c : cToF(c));
+    // Wind conversion (raw is always km/h)
+    const convWind = (k) => k == null ? null : Math.round(isMetric ? k : kmhToMph(k));
+
+    // Build hourly forecast (next 24h in 3h intervals)
+    const hourlyForecast = [];
+    if (hourly.time && hourly.temperature_2m) {
+      for (let i = 0; i < Math.min(24, hourly.time.length); i += 3) {
+        const hCode = hourly.weather_code?.[i];
+        const hWeather = WEATHER_CODES[hCode] || { desc: '', icon: '🌡️' };
+        hourlyForecast.push({
+          time: new Date(hourly.time[i]).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
+          temp: convTemp(hourly.temperature_2m[i]),
+          precipProb: hourly.precipitation_probability?.[i] || 0,
+          icon: hWeather.icon,
+        });
+      }
+    }
+    
+    // Build daily forecast
+    const dailyForecast = [];
+    if (daily.time) {
+      for (let i = 0; i < Math.min(3, daily.time.length); i++) {
+        const dCode = daily.weather_code?.[i];
+        const dWeather = WEATHER_CODES[dCode] || { desc: '', icon: '🌡️' };
+        dailyForecast.push({
+          date: new Date(daily.time[i] + 'T12:00:00').toLocaleDateString([], { weekday: 'short' }),
+          high: convTemp(daily.temperature_2m_max?.[i]),
+          low: convTemp(daily.temperature_2m_min?.[i]),
+          precipProb: daily.precipitation_probability_max?.[i] || 0,
+          precipSum: isMetric 
+            ? (daily.precipitation_sum?.[i] || 0)
+            : parseFloat(mmToInch(daily.precipitation_sum?.[i] || 0).toFixed(2)),
+          icon: dWeather.icon,
+          desc: dWeather.desc,
+          windMax: convWind(daily.wind_speed_10m_max?.[i]),
+          uvMax: daily.uv_index_max?.[i] || 0,
+        });
+      }
+    }
+
+    // Raw Celsius values for Header's dual F/C display
+    const rawTempC = current.temperature_2m || 0;
+
+    return {
+      // Current conditions (converted to user's preferred unit)
+      temp: convTemp(current.temperature_2m),
+      feelsLike: convTemp(current.apparent_temperature),
+      description: weather.desc,
+      icon: weather.icon,
+      humidity: Math.round(current.relative_humidity_2m || 0),
+      dewPoint: convTemp(current.dew_point_2m),
+      pressure: current.pressure_msl ? current.pressure_msl.toFixed(1) : null,
+      cloudCover: current.cloud_cover || 0,
+      windSpeed: convWind(current.wind_speed_10m),
+      windDir: windDirection(current.wind_direction_10m),
+      windDirDeg: current.wind_direction_10m || 0,
+      windGusts: convWind(current.wind_gusts_10m),
+      precipitation: isMetric 
+        ? (current.precipitation || 0) 
+        : parseFloat(mmToInch(current.precipitation || 0).toFixed(2)),
+      uvIndex: current.uv_index || 0,
+      visibility: current.visibility 
+        ? isMetric 
+          ? (current.visibility / 1000).toFixed(1)  // meters to km
+          : kmToMi(current.visibility / 1000).toFixed(1) // meters to km to miles
+        : null,
+      isDay: current.is_day === 1,
+      weatherCode: code,
+      // Today's highs/lows
+      todayHigh: convTemp(daily.temperature_2m_max?.[0]),
+      todayLow: convTemp(daily.temperature_2m_min?.[0]),
+      // Forecasts
+      hourly: hourlyForecast,
+      daily: dailyForecast,
+      // Timezone
+      timezone: rawData.timezone || '',
+      // Units (for display labels)
+      tempUnit: isMetric ? 'C' : 'F',
+      windUnit: isMetric ? 'km/h' : 'mph',
+      visUnit: isMetric ? 'km' : 'mi',
+      // Raw Celsius for Header's dual display (avoids double-rounding)
+      rawTempC,
+      rawFeelsLikeC: current.apparent_temperature || 0,
+    };
+  })();
 
   return { data, loading };
 };

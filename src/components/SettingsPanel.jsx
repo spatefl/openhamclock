@@ -232,7 +232,7 @@ export const SettingsPanel = ({ isOpen, onClose, config, onSave }) => {
               fontFamily: 'JetBrains Mono, monospace'
             }}
           >
-            📡 Station
+            ⌇ Station
           </button>
           <button
             onClick={() => setActiveTab('layers')}
@@ -249,7 +249,7 @@ export const SettingsPanel = ({ isOpen, onClose, config, onSave }) => {
               fontFamily: 'JetBrains Mono, monospace'
             }}
           >
-            🗺️ Map Layers
+            ⊞ Map Layers
           </button>
         </div>
 
@@ -592,7 +592,7 @@ export const SettingsPanel = ({ isOpen, onClose, config, onSave }) => {
             {/* Language */}
             <div style={{ marginBottom: '20px' }}>
               <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                🌐 {t('station.settings.language')}
+                ⊕ {t('station.settings.language')}
               </label>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px' }}>
                 {LANGUAGES.map((lang) => (

@@ -310,7 +310,7 @@ export const PSKFilterManager = ({ filters, onFilterChange, isOpen, onClose }) =
         }}>
           <div>
             <h3 style={{ margin: 0, fontSize: '16px', color: 'var(--text-primary)' }}>
-              📡 PSKReporter Filters
+              ⌇ PSKReporter Filters
             </h3>
             <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
               {getActiveFilterCount()} filter{getActiveFilterCount() !== 1 ? 's' : ''} active

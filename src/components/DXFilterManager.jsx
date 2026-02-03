@@ -416,7 +416,7 @@ export const DXFilterManager = ({ filters, onFilterChange, isOpen, onClose }) =>
         }}>
           <div>
             <div style={{ fontSize: '18px', fontWeight: '700', color: 'var(--accent-cyan)' }}>
-              🔍 DX Cluster Filters
+              ⊘ DX Cluster Filters
             </div>
             <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
               {getActiveFilterCount()} filters active
@@ -462,7 +462,7 @@ export const DXFilterManager = ({ filters, onFilterChange, isOpen, onClose }) =>
           <button onClick={() => setActiveTab('modes')} style={tabStyle(activeTab === 'modes')}>Modes</button>
           <button onClick={() => setActiveTab('watchlist')} style={tabStyle(activeTab === 'watchlist')}>Watchlist</button>
           <button onClick={() => setActiveTab('exclude')} style={tabStyle(activeTab === 'exclude')}>Exclude</button>
-          <button onClick={() => setActiveTab('settings')} style={tabStyle(activeTab === 'settings')}>⚙ Settings</button>
+          <button onClick={() => setActiveTab('settings')} style={tabStyle(activeTab === 'settings')}>⊙ Settings</button>
         </div>
 
         {/* Tab Content */}

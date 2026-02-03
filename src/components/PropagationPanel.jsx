@@ -34,7 +34,7 @@ export const PropagationPanel = ({ propagation, loading, bandConditions }) => {
   if (loading || !propagation) {
     return (
       <div className="panel">
-        <div className="panel-header">📡 VOACAP</div>
+        <div className="panel-header">⌇ VOACAP</div>
         <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)' }}>
           Loading predictions...
         </div>
@@ -81,7 +81,7 @@ export const PropagationPanel = ({ propagation, loading, bandConditions }) => {
     <div className="panel" style={{ cursor: 'pointer' }} onClick={cycleViewMode}>
       <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>
-          {viewMode === 'bands' ? '📊 BAND CONDITIONS' : '📡 VOACAP'}
+          {viewMode === 'bands' ? '◫ BAND CONDITIONS' : '⌇ VOACAP'}
           {hasRealData && viewMode !== 'bands' && <span style={{ color: '#00ff88', fontSize: '10px', marginLeft: '4px' }}>●</span>}
         </span>
         <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
@@ -143,7 +143,7 @@ export const PropagationPanel = ({ propagation, loading, bandConditions }) => {
             </div>
             <span style={{ color: hasRealData ? '#00ff88' : 'var(--text-muted)', fontSize: '10px' }}>
               {hasRealData 
-                ? `📡 ${ionospheric?.source || 'ionosonde'}${ionospheric?.distance ? ` (${ionospheric.distance}km)` : ''}`
+                ? `⌇ ${ionospheric?.source || 'ionosonde'}${ionospheric?.distance ? ` (${ionospheric.distance}km)` : ''}`
                 : '⚡ estimated'
               }
             </span>

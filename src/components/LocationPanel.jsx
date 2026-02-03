@@ -21,7 +21,7 @@ export const LocationPanel = ({
 
   return (
     <div className="panel" style={{ padding: '12px' }}>
-      <div className="panel-header">📍 LOCATIONS</div>
+      <div className="panel-header">◎ LOCATIONS</div>
       
       {/* DE Location */}
       <div style={{ marginBottom: '12px' }}>

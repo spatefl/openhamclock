@@ -20,7 +20,7 @@ export const BandConditionsPanel = ({ data, loading }) => {
 
   return (
     <div className="panel" style={{ padding: '12px' }}>
-      <div className="panel-header">📡 BAND CONDITIONS</div>
+      <div className="panel-header">⌇ BAND CONDITIONS</div>
       {loading ? (
         <div style={{ display: 'flex', justifyContent: 'center', padding: '20px' }}>
           <div className="loading-spinner" />

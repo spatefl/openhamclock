@@ -116,6 +116,11 @@ export const loadConfig = () => {
   // Mark if config needs setup (no callsign set anywhere)
   config.configIncomplete = (config.callsign === 'N0CALL' || !config.locator);
   
+  // Always inject version from server (not a user preference — server is source of truth)
+  if (serverConfig?.version) {
+    config.version = serverConfig.version;
+  }
+  
   return config;
 };
 

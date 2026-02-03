@@ -7,7 +7,7 @@ import { getMoonPhase } from '../utils/geo.js';
 
 const MODES = ['image', 'indices', 'xray', 'lunar'];
 const MODE_LABELS = { image: 'SOLAR', indices: 'SOLAR INDICES', xray: 'X-RAY FLUX', lunar: 'LUNAR' };
-const MODE_ICONS = { image: '📊', indices: '📈', xray: '🌙', lunar: '☀️' };
+const MODE_ICONS = { image: '◫', indices: '⊞', xray: '☽', lunar: '☼' };
 const MODE_TITLES = { image: 'Show solar indices', indices: 'Show X-ray flux', xray: 'Show lunar phase', lunar: 'Show solar image' };
 
 // Flare class from flux value (W/m²)
@@ -389,13 +389,13 @@ export const SolarPanel = ({ solarIndices }) => {
           <div style={{ 
             background: 'var(--bg-tertiary)', borderRadius: '4px', padding: '4px 8px', textAlign: 'center',
           }}>
-            <div style={{ color: 'var(--text-muted)' }}>🌑 New</div>
+            <div style={{ color: 'var(--text-muted)' }}>● New</div>
             <div style={{ color: 'var(--text-secondary)', fontWeight: '600' }}>{nextNew}</div>
           </div>
           <div style={{ 
             background: 'var(--bg-tertiary)', borderRadius: '4px', padding: '4px 8px', textAlign: 'center',
           }}>
-            <div style={{ color: 'var(--text-muted)' }}>🌕 Full</div>
+            <div style={{ color: 'var(--text-muted)' }}>○ Full</div>
             <div style={{ color: 'var(--text-secondary)', fontWeight: '600' }}>{nextFull}</div>
           </div>
         </div>

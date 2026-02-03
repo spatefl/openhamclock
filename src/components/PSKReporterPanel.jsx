@@ -10,6 +10,7 @@
 import React, { useState, useMemo } from 'react';
 import { usePSKReporter } from '../hooks/usePSKReporter.js';
 import { getBandColor } from '../utils/callsign.js';
+import { IconSearch, IconRefresh, IconMap } from './Icons.jsx';
 
 const PSKReporterPanel = ({ 
   callsign, 
@@ -182,10 +183,10 @@ const PSKReporterPanel = ({
       }}>
         {/* Mode toggle */}
         <div style={{ display: 'flex' }}>
-          <button onClick={() => setPanelModePersist('psk')} style={segBtn(panelMode === 'psk', 'var(--accent-primary)')}>
+          <button onClick={() => setPanelModePersist('psk')} style={segBtn(panelMode === 'psk', 'var(--accent-primary)')} title="Internet-based reception reports via PSKReporter.info">
             PSKReporter
           </button>
-          <button onClick={() => setPanelModePersist('wsjtx')} style={segBtn(panelMode === 'wsjtx', '#a78bfa')}>
+          <button onClick={() => setPanelModePersist('wsjtx')} style={segBtn(panelMode === 'wsjtx', '#a78bfa')} title="Local WSJT-X decodes via UDP relay">
             WSJT-X
           </button>
         </div>
@@ -198,14 +199,14 @@ const PSKReporterPanel = ({
               {statusDot && (
                 <span style={{ color: statusDot.color, fontSize: '10px', lineHeight: 1 }}>{statusDot.char}</span>
               )}
-              <button onClick={onOpenFilters} style={iconBtn(pskFilterCount > 0, '#ffaa00')}>
-                {pskFilterCount > 0 ? `🔍${pskFilterCount}` : '🔍'}
+              <button onClick={onOpenFilters} style={iconBtn(pskFilterCount > 0, '#ffaa00')} title="Filter spots by band, mode, or grid">
+                <IconSearch size={11} style={{ verticalAlign: 'middle' }} />{pskFilterCount > 0 ? pskFilterCount : ''}
               </button>
               <button onClick={refresh} disabled={loading} style={{
                 ...iconBtn(false),
                 opacity: loading ? 0.4 : 1,
                 cursor: loading ? 'not-allowed' : 'pointer',
-              }}>🔄</button>
+              }} title="Reconnect to PSKReporter"><IconRefresh size={11} style={{ verticalAlign: 'middle' }} /></button>
             </>
           )}
 
@@ -241,8 +242,8 @@ const PSKReporterPanel = ({
 
           {/* Map toggle (always visible) */}
           {handleMapToggle && (
-            <button onClick={handleMapToggle} style={iconBtn(isMapOn, panelMode === 'psk' ? '#4488ff' : '#a78bfa')}>
-              🗺️
+            <button onClick={handleMapToggle} style={iconBtn(isMapOn, panelMode === 'psk' ? '#4488ff' : '#a78bfa')} title={isMapOn ? 'Hide spots on map' : 'Show spots on map'}>
+              <IconMap size={11} style={{ verticalAlign: 'middle' }} />
             </button>
           )}
         </div>
@@ -252,19 +253,19 @@ const PSKReporterPanel = ({
       <div style={{ display: 'flex', gap: '4px', marginBottom: '5px', flexShrink: 0 }}>
         {panelMode === 'psk' ? (
           <>
-            <button onClick={() => setActiveTabPersist('tx')} style={subTabBtn(activeTab === 'tx', '#4ade80')}>
+            <button onClick={() => setActiveTabPersist('tx')} style={subTabBtn(activeTab === 'tx', '#4ade80')} title="Stations hearing your signal">
               ▲ Heard ({pskFilterCount > 0 ? filteredTx.length : txCount})
             </button>
-            <button onClick={() => setActiveTabPersist('rx')} style={subTabBtn(activeTab === 'rx', '#60a5fa')}>
+            <button onClick={() => setActiveTabPersist('rx')} style={subTabBtn(activeTab === 'rx', '#60a5fa')} title="Stations you are hearing">
               ▼ Hearing ({pskFilterCount > 0 ? filteredRx.length : rxCount})
             </button>
           </>
         ) : (
           <>
-            <button onClick={() => setWsjtxTab('decodes')} style={subTabBtn(wsjtxTab === 'decodes', '#a78bfa')}>
+            <button onClick={() => setWsjtxTab('decodes')} style={subTabBtn(wsjtxTab === 'decodes', '#a78bfa')} title="Live WSJT-X decodes">
               Decodes ({filteredDecodes.length})
             </button>
-            <button onClick={() => setWsjtxTab('qsos')} style={subTabBtn(wsjtxTab === 'qsos', '#a78bfa')}>
+            <button onClick={() => setWsjtxTab('qsos')} style={subTabBtn(wsjtxTab === 'qsos', '#a78bfa')} title="Logged QSOs from WSJT-X">
               QSOs ({wsjtxQsos.length})
             </button>
           </>
@@ -283,7 +284,7 @@ const PSKReporterPanel = ({
               </div>
             ) : error && !connected ? (
               <div style={{ textAlign: 'center', padding: '12px', color: 'var(--text-muted)', fontSize: '11px' }}>
-                Connection failed — tap 🔄
+                Connection failed — tap refresh ↻
               </div>
             ) : loading && filteredReports.length === 0 && pskFilterCount === 0 ? (
               <div style={{ textAlign: 'center', padding: '16px', color: 'var(--text-muted)', fontSize: '11px' }}>

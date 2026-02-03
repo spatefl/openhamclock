@@ -24,7 +24,7 @@ export const DXpeditionPanel = ({ data, loading }) => {
         marginBottom: '6px',
         fontSize: '11px'
       }}>
-        <span>🌍 DXPEDITIONS</span>
+        <span>⊕ DXPEDITIONS</span>
         {data && (
           <span style={{ fontSize: '9px', color: 'var(--text-muted)' }}>
             {data.active > 0 && <span style={{ color: 'var(--accent-green)' }}>{data.active} active</span>}
