@@ -631,8 +631,44 @@ export function useLayer({ enabled = false, opacity = 0.5, map = null }) {
           const lowerSeg = lowerSegments[i];
           
           if (upperSeg.length > 1 && lowerSeg.length > 1) {
+            // Get the longitude range for this segment
+            const segLons = upperSeg.map(p => p[1]);
+            const segMinLon = Math.min(...segLons);
+            const segMaxLon = Math.max(...segLons);
+            
             // Create polygon from upper segment + reversed lower segment
-            const enhancedZone = [...upperSeg, ...lowerSeg.reverse()];
+            let enhancedZone = [...upperSeg, ...lowerSeg.reverse()];
+            
+            // If this segment is at a map edge (near ±180°), close it properly
+            // by extending to the map bounds
+            const isWestEdge = segMinLon < -170;  // Near -180°
+            const isEastEdge = segMaxLon > 170;   // Near +180°
+            
+            if (isWestEdge || isEastEdge) {
+              // Get the latitude range
+              const lats = enhancedZone.map(p => p[0]);
+              const maxLat = Math.max(...lats);
+              const minLat = Math.min(...lats);
+              
+              // Close the polygon by adding corner points at the map edge
+              if (isWestEdge) {
+                // Add corners at -180°
+                const firstLat = enhancedZone[0][0];
+                const lastLat = enhancedZone[enhancedZone.length - 1][0];
+                enhancedZone.push([lastLat, -180]);
+                enhancedZone.push([maxLat, -180]);
+                enhancedZone.push([firstLat, -180]);
+              }
+              
+              if (isEastEdge) {
+                // Add corners at +180°
+                const firstLat = enhancedZone[0][0];
+                const lastLat = enhancedZone[enhancedZone.length - 1][0];
+                enhancedZone.push([lastLat, 180]);
+                enhancedZone.push([maxLat, 180]);
+                enhancedZone.push([firstLat, 180]);
+              }
+            }
             
             // Debug: Show longitude range of this polygon
             const polyLons = enhancedZone.map(p => p[1]);
@@ -643,7 +679,9 @@ export function useLayer({ enabled = false, opacity = 0.5, map = null }) {
               upperPoints: upperSeg.length,
               lowerPoints: lowerSeg.length,
               totalPolygonPoints: enhancedZone.length,
-              lonRange: `${polyMinLon.toFixed(1)} to ${polyMaxLon.toFixed(1)}`
+              lonRange: `${polyMinLon.toFixed(1)} to ${polyMaxLon.toFixed(1)}`,
+              isWestEdge,
+              isEastEdge
             });
             
             const enhancedPoly = L.polygon(enhancedZone, {
