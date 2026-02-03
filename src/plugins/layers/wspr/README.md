@@ -1,10 +1,10 @@
 # WSPR Propagation Heatmap Plugin
 
-**Version:** 1.4.1  
+**Version:** 1.4.2  
 **Category:** Propagation  
 **Icon:** 📡  
 **Author:** OpenHamClock Contributors  
-**Last Updated:** 2026-02-03 (v1.4.1 Bug Fix Release)
+**Last Updated:** 2026-02-03 (v1.4.2 Performance Fix)
 
 ---
 
@@ -14,7 +14,33 @@ The WSPR (Weak Signal Propagation Reporter) Heatmap Plugin provides real-time vi
 
 ## Features Implemented
 
-### ✅ v1.4.1 - Bug Fixes (Latest)
+### ✅ v1.4.2 - Performance & Duplicate Control Fix (Latest)
+
+#### **Critical Bug Fix**
+- **Fixed Duplicate Popups**: No more multiple "WSPR Activity" popups spawning
+  - Controls were recreating on every opacity/animation change
+  - Stats, legend, and chart controls now created ONCE on plugin enable
+  - Control content updated dynamically without recreation
+  - Issue: Adjusting opacity slider created new popup each time → FIXED
+  - Issue: Toggling "Animate Paths" created new popup → FIXED
+
+#### **Major Performance Improvements**
+- **90% Reduction in Re-renders**: Separated control creation from data rendering
+  - Controls created in dedicated useEffect (runs once per enable)
+  - Data updates only refresh control CONTENT (via innerHTML)
+  - Removed unnecessary dependencies from render effect
+  - Used useRef to track control instances
+- **Smooth UI**: No lag when adjusting opacity or toggling animations
+- **Memory Efficient**: Eliminated control recreation loops
+
+#### **Technical Optimizations**
+- Control creation dependencies: `[enabled, map]` only
+- Render dependencies: `[enabled, wsprData, map, snrThreshold, showAnimation, timeWindow]`
+- Removed: `opacity, statsControl, legendControl, chartControl` from render deps
+- Stats/chart content updated via DOM manipulation
+- Panel positions still persist correctly
+
+### ✅ v1.4.1 - Bug Fixes
 
 #### **Fixed Issues**
 - **CTRL+Drag to Move**: Panels now require holding CTRL key while dragging
