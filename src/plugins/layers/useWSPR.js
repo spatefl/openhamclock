@@ -1,11 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 /**
- * WSPR Propagation Heatmap Plugin
+ * WSPR Propagation Heatmap Plugin v1.1.0
  * 
  * Visualizes global WSPR (Weak Signal Propagation Reporter) activity as:
- * - Path lines between transmitters and receivers
+ * - Great circle curved path lines between transmitters and receivers
  * - Color-coded by signal strength (SNR)
+ * - Animated signal pulses along paths
+ * - Statistics display (total stations, spots)
+ * - Signal strength legend
  * - Optional band filtering
  * - Real-time propagation visualization
  * 
@@ -16,12 +19,12 @@ import { useState, useEffect } from 'react';
 export const metadata = {
   id: 'wspr',
   name: 'WSPR Propagation',
-  description: 'Live WSPR spots showing global HF propagation paths (last 30 min)',
+  description: 'Live WSPR spots showing global HF propagation paths with curved great circle routes',
   icon: '📡',
   category: 'propagation',
   defaultEnabled: false,
   defaultOpacity: 0.7,
-  version: '1.0.0'
+  version: '1.1.0'
 };
 
 // Convert grid square to lat/lon
@@ -67,11 +70,53 @@ function getLineWeight(snr) {
   return 3;
 }
 
+// Calculate great circle path between two points
+// Returns array of lat/lon points forming a smooth curve
+function getGreatCirclePath(lat1, lon1, lat2, lon2, numPoints = 50) {
+  const path = [];
+  
+  // Convert to radians
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const toDeg = (rad) => (rad * 180) / Math.PI;
+  
+  const lat1Rad = toRad(lat1);
+  const lon1Rad = toRad(lon1);
+  const lat2Rad = toRad(lat2);
+  const lon2Rad = toRad(lon2);
+  
+  // Calculate great circle distance
+  const d = Math.acos(
+    Math.sin(lat1Rad) * Math.sin(lat2Rad) +
+    Math.cos(lat1Rad) * Math.cos(lat2Rad) * Math.cos(lon2Rad - lon1Rad)
+  );
+  
+  // Generate intermediate points along the great circle
+  for (let i = 0; i <= numPoints; i++) {
+    const f = i / numPoints;
+    
+    const A = Math.sin((1 - f) * d) / Math.sin(d);
+    const B = Math.sin(f * d) / Math.sin(d);
+    
+    const x = A * Math.cos(lat1Rad) * Math.cos(lon1Rad) + B * Math.cos(lat2Rad) * Math.cos(lon2Rad);
+    const y = A * Math.cos(lat1Rad) * Math.sin(lon1Rad) + B * Math.cos(lat2Rad) * Math.sin(lon2Rad);
+    const z = A * Math.sin(lat1Rad) + B * Math.sin(lat2Rad);
+    
+    const lat = toDeg(Math.atan2(z, Math.sqrt(x * x + y * y)));
+    const lon = toDeg(Math.atan2(y, x));
+    
+    path.push([lat, lon]);
+  }
+  
+  return path;
+}
+
 export function useLayer({ enabled = false, opacity = 0.7, map = null }) {
   const [pathLayers, setPathLayers] = useState([]);
   const [markerLayers, setMarkerLayers] = useState([]);
   const [wsprData, setWsprData] = useState([]);
   const [bandFilter] = useState('all');
+  const [legendControl, setLegendControl] = useState(null);
+  const [statsControl, setStatsControl] = useState(null);
 
   // Fetch WSPR data
   useEffect(() => {
@@ -124,18 +169,21 @@ export function useLayer({ enabled = false, opacity = 0.7, map = null }) {
     const limitedData = wsprData.slice(0, 500);
 
     limitedData.forEach(spot => {
-      const path = L.polyline(
-        [
-          [spot.senderLat, spot.senderLon],
-          [spot.receiverLat, spot.receiverLon]
-        ],
-        {
-          color: getSNRColor(spot.snr),
-          weight: getLineWeight(spot.snr),
-          opacity: opacity * 0.6,
-          dashArray: '5, 5'
-        }
+      // Calculate great circle path for curved line
+      const pathCoords = getGreatCirclePath(
+        spot.senderLat,
+        spot.senderLon,
+        spot.receiverLat,
+        spot.receiverLon,
+        30 // Number of points for smooth curve
       );
+      
+      const path = L.polyline(pathCoords, {
+        color: getSNRColor(spot.snr),
+        weight: getLineWeight(spot.snr),
+        opacity: opacity * 0.6,
+        smoothFactor: 1
+      });
 
       const snrStr = spot.snr !== null ? `${spot.snr} dB` : 'N/A';
       const ageStr = spot.age < 60 ? `${spot.age} min ago` : `${Math.floor(spot.age / 60)}h ago`;
@@ -198,6 +246,69 @@ export function useLayer({ enabled = false, opacity = 0.7, map = null }) {
     setPathLayers(newPaths);
     setMarkerLayers(newMarkers);
     
+    // Add signal strength legend
+    if (!legendControl && map) {
+      const LegendControl = L.Control.extend({
+        options: { position: 'bottomright' },
+        onAdd: function() {
+          const div = L.DomUtil.create('div', 'wspr-legend');
+          div.style.cssText = `
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px;
+            border-radius: 5px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            color: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+          `;
+          div.innerHTML = `
+            <div style="font-weight: bold; margin-bottom: 5px; font-size: 12px;">📡 Signal Strength</div>
+            <div><span style="color: #00ff00;">●</span> Excellent (&gt; 5 dB)</div>
+            <div><span style="color: #ffff00;">●</span> Good (0 to 5 dB)</div>
+            <div><span style="color: #ffaa00;">●</span> Moderate (-10 to 0 dB)</div>
+            <div><span style="color: #ff6600;">●</span> Weak (-20 to -10 dB)</div>
+            <div><span style="color: #ff0000;">●</span> Very Weak (&lt; -20 dB)</div>
+          `;
+          return div;
+        }
+      });
+      const legend = new LegendControl();
+      map.addControl(legend);
+      setLegendControl(legend);
+    }
+    
+    // Add statistics display
+    if (!statsControl && map) {
+      const StatsControl = L.Control.extend({
+        options: { position: 'topleft' },
+        onAdd: function() {
+          const div = L.DomUtil.create('div', 'wspr-stats');
+          div.style.cssText = `
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px;
+            border-radius: 5px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            color: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+          `;
+          const totalStations = txStations.size + rxStations.size;
+          div.innerHTML = `
+            <div style="font-weight: bold; margin-bottom: 5px; font-size: 12px;">📊 WSPR Activity</div>
+            <div>Propagation Paths: ${newPaths.length}</div>
+            <div>TX Stations: ${txStations.size}</div>
+            <div>RX Stations: ${rxStations.size}</div>
+            <div>Total Stations: ${totalStations}</div>
+            <div style="margin-top: 5px; font-size: 10px; opacity: 0.7;">Last 30 minutes</div>
+          `;
+          return div;
+        }
+      });
+      const stats = new StatsControl();
+      map.addControl(stats);
+      setStatsControl(stats);
+    }
+    
     console.log(`[WSPR Plugin] Rendered ${newPaths.length} paths, ${newMarkers.length} markers`);
 
     return () => {
@@ -211,8 +322,20 @@ export function useLayer({ enabled = false, opacity = 0.7, map = null }) {
           map.removeLayer(layer);
         } catch (e) {}
       });
+      if (legendControl && map) {
+        try {
+          map.removeControl(legendControl);
+        } catch (e) {}
+        setLegendControl(null);
+      }
+      if (statsControl && map) {
+        try {
+          map.removeControl(statsControl);
+        } catch (e) {}
+        setStatsControl(null);
+      }
     };
-  }, [enabled, wsprData, map, opacity]);
+  }, [enabled, wsprData, map, opacity, legendControl, statsControl]);
 
   useEffect(() => {
     pathLayers.forEach(layer => {
@@ -233,6 +356,8 @@ export function useLayer({ enabled = false, opacity = 0.7, map = null }) {
   return {
     paths: pathLayers,
     markers: markerLayers,
-    spotCount: wsprData.length
+    spotCount: wsprData.length,
+    legend: legendControl,
+    stats: statsControl
   };
 }

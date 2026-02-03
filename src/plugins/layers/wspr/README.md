@@ -1,0 +1,326 @@
+# WSPR Propagation Heatmap Plugin
+
+**Version:** 1.0.0  
+**Category:** Propagation  
+**Icon:** 📡  
+**Author:** OpenHamClock Contributors  
+**Last Updated:** 2026-02-03
+
+---
+
+## Overview
+
+The WSPR (Weak Signal Propagation Reporter) Heatmap Plugin provides real-time visualization of global HF radio propagation conditions by displaying active WSPR spots as curved propagation paths on the world map.
+
+## Features Implemented
+
+### ✅ Core Features (v1.0.0)
+
+#### **Real-Time Propagation Paths**
+- Displays signal paths between WSPR transmitters (TX) and receivers (RX)
+- Great circle paths (curved lines following Earth's curvature)
+- Updates automatically every 5 minutes
+- Shows last 30 minutes of activity
+
+#### **Signal Strength Visualization**
+- **Color-coded by SNR (Signal-to-Noise Ratio)**:
+  - 🔴 Red: Very weak (< -20 dB)
+  - 🟠 Orange-Red: Weak (-20 to -10 dB)
+  - 🟡 Orange: Moderate (-10 to 0 dB)
+  - 🟡 Yellow: Good (0 to 5 dB)
+  - 🟢 Green: Excellent (> 5 dB)
+- **Line thickness** scales with signal strength (1-3px)
+- **Opacity control** via Settings panel slider
+
+#### **Station Markers**
+- 🟠 **Orange circles**: Transmitting stations
+- 🔵 **Blue circles**: Receiving stations
+- Hover tooltips showing callsigns
+- De-duplicated (one marker per station)
+
+#### **Interactive Information**
+- **Click any path** to see detailed popup:
+  - Transmitter callsign and grid square
+  - Receiver callsign and grid square
+  - Frequency (MHz) and band
+  - Signal-to-noise ratio (dB)
+  - Spot age (minutes or hours ago)
+
+#### **Performance Optimizations**
+- Limits display to 500 most recent spots
+- 5-minute API caching to respect rate limits
+- Efficient layer management (add/remove on enable/disable)
+- Memory cleanup on component unmount
+
+#### **User Controls**
+- Enable/disable toggle in Settings → Map Layers
+- Opacity slider (0-100%)
+- Persistent state saved in localStorage
+
+### 📊 Data Details
+
+- **Data Source**: PSK Reporter API
+- **Mode Filter**: WSPR only
+- **Time Window**: Last 30 minutes (configurable)
+- **Update Interval**: 5 minutes
+- **Max Spots Displayed**: 500 (for performance)
+- **Supported Bands**: All WSPR bands (2200m - 70cm)
+
+### 🌐 Backend API
+
+**Endpoint**: `/api/wspr/heatmap`
+
+**Query Parameters**:
+- `minutes` (optional): Time window in minutes (default: 30)
+- `band` (optional): Filter by band, e.g., "20m", "40m" (default: "all")
+
+**Response Format**:
+```json
+{
+  "count": 245,
+  "spots": [
+    {
+      "sender": "K0CJH",
+      "senderGrid": "DN70",
+      "senderLat": 39.5,
+      "senderLon": -104.5,
+      "receiver": "DL1ABC",
+      "receiverGrid": "JO60",
+      "receiverLat": 50.5,
+      "receiverLon": 10.5,
+      "freq": 14097100,
+      "freqMHz": "14.097",
+      "band": "20m",
+      "snr": -15,
+      "timestamp": 1704312345000,
+      "age": 12
+    }
+  ],
+  "minutes": 30,
+  "band": "all",
+  "timestamp": "2026-02-03T15:00:00Z",
+  "source": "pskreporter"
+}
+```
+
+---
+
+## 🚀 Optional Enhancements (Planned)
+
+### v1.1.0 - Enhanced Visualization
+- [ ] **Signal Strength Legend**: Color scale legend in map corner
+- [ ] **Path Animation**: Animated signal "pulses" from TX to RX
+- [ ] **Fading Paths**: Older spots fade out gradually
+- [ ] **Station Clustering**: Group nearby stations on zoom-out
+
+### v1.2.0 - Advanced Filtering
+- [ ] **Band Selector UI**: Dropdown menu for band filtering
+- [ ] **Time Range Slider**: Choose 15min, 30min, 1hr, 2hr, 6hr windows
+- [ ] **SNR Threshold Filter**: Hide weak signals below threshold
+- [ ] **Grid Square Filter**: Show only specific grid squares
+- [ ] **Callsign Search**: Highlight paths involving specific callsign
+
+### v1.3.0 - Statistics & Analytics
+- [ ] **Activity Counter**: Show total TX/RX stations count
+- [ ] **Band Activity Chart**: Bar chart showing spots per band
+- [ ] **Hot Spot Heatmap**: Density map of high-activity regions
+- [ ] **Propagation Score**: Overall HF conditions indicator
+- [ ] **Best DX Paths**: Highlight longest or strongest paths
+
+### v1.4.0 - Advanced Features
+- [ ] **Historical Playback**: Time-slider to replay past propagation
+- [ ] **Frequency Histogram**: Show active WSPR frequencies
+- [ ] **MUF Overlay**: Calculated Maximum Usable Frequency zones
+- [ ] **Solar Activity Correlation**: Link with solar indices
+- [ ] **Export Data**: Download CSV of current spots
+
+---
+
+## 🎨 Technical Implementation
+
+### File Structure
+```
+src/plugins/layers/
+├── useWSPR.js          # Main plugin file
+└── wspr/
+    └── README.md       # This file
+```
+
+### Architecture
+- **React Hooks-based**: Uses `useState`, `useEffect`
+- **Leaflet Integration**: Direct Leaflet.js API usage
+- **Zero Core Changes**: Plugin is completely self-contained
+- **Follows Plugin Pattern**: Matches existing plugins (Aurora, Earthquakes, Weather Radar)
+
+### Key Functions
+- `gridToLatLon(grid)`: Converts Maidenhead grid to coordinates
+- `getSNRColor(snr)`: Maps SNR to color gradient
+- `getLineWeight(snr)`: Maps SNR to line thickness
+- `useLayer()`: Main plugin hook (called by PluginLayer.jsx)
+
+### Dependencies
+- **React**: Component framework
+- **Leaflet**: Map rendering (`L.polyline`, `L.circleMarker`)
+- **Backend API**: `/api/wspr/heatmap` endpoint
+
+---
+
+## 📖 Usage Guide
+
+### For Users
+
+1. **Enable Plugin**:
+   - Open Settings (⚙️ icon)
+   - Go to "Map Layers" tab
+   - Toggle "WSPR Propagation" ON
+
+2. **Adjust Opacity**:
+   - Use the opacity slider
+   - 0% = invisible, 100% = opaque
+
+3. **View Details**:
+   - Click any propagation path
+   - Popup shows TX/RX info, frequency, SNR
+
+4. **Disable Plugin**:
+   - Toggle OFF in Settings
+   - All markers/paths removed instantly
+
+### For Developers
+
+**Adding this plugin to your OpenHamClock instance**:
+
+1. Copy `useWSPR.js` to `src/plugins/layers/`
+2. Add to `src/plugins/layerRegistry.js`:
+   ```javascript
+   import * as WSPRPlugin from './layers/useWSPR.js';
+   
+   const layerPlugins = [
+     // ... other plugins
+     WSPRPlugin,
+   ];
+   ```
+3. Ensure `/api/wspr/heatmap` endpoint exists in `server.js`
+4. Rebuild: `npm run build`
+5. Restart server: `npm start`
+
+**Customizing the plugin**:
+
+```javascript
+// In useWSPR.js, adjust these constants:
+
+// Fetch interval (milliseconds)
+const interval = setInterval(fetchWSPR, 300000); // 5 min
+
+// Time window (minutes)
+const response = await fetch(`/api/wspr/heatmap?minutes=30`);
+
+// Max spots displayed
+const limitedData = wsprData.slice(0, 500);
+
+// SNR color thresholds
+function getSNRColor(snr) {
+  if (snr < -20) return '#ff0000'; // Adjust as needed
+  // ...
+}
+```
+
+---
+
+## 🐛 Troubleshooting
+
+### Plugin Not Appearing in Settings
+- Check that `WSPRPlugin` is imported in `layerRegistry.js`
+- Verify `metadata` export exists in `useWSPR.js`
+- Check browser console for import errors
+
+### No Spots Displayed
+- Open browser DevTools → Network tab
+- Check if `/api/wspr/heatmap` returns data
+- PSK Reporter may have rate limits (5-minute cache helps)
+- Try increasing time window: `?minutes=60`
+
+### Performance Issues
+- Reduce max spots: Change `limitedData.slice(0, 500)` to `slice(0, 200)`
+- Increase update interval to 10 minutes
+- Disable other map layers temporarily
+
+### API Timeout Errors
+- PSK Reporter API can be slow during high activity
+- Backend timeout is 20 seconds
+- Cached data will be returned if fresh data fails
+
+---
+
+## 📊 Example Use Cases
+
+### 1. **Contest Planning**
+- Check which bands are "open" before contest
+- See propagation to needed multiplier zones
+- Identify best times for DX contacts
+
+### 2. **Antenna Testing**
+- Enable plugin, transmit WSPR
+- Wait 5-10 minutes
+- Check where your signal is being heard
+- Compare different antennas/times
+
+### 3. **Propagation Study**
+- Watch how paths change throughout the day
+- Correlate with solar activity
+- Learn which bands work to specific regions
+
+### 4. **Station Comparison**
+- Compare your reports with nearby stations
+- Identify local noise/RFI issues
+- Validate antenna performance
+
+---
+
+## 🤝 Contributing
+
+**Found a bug?** Open an issue on GitHub.  
+**Have an enhancement idea?** Submit a pull request!  
+**Want to help?** Pick an item from "Optional Enhancements" above.
+
+### Coding Standards
+- Follow existing plugin patterns
+- Keep code self-contained in plugin file
+- Add comments for complex logic
+- Test enable/disable/opacity changes
+- Verify no memory leaks
+
+---
+
+## 📄 License
+
+MIT License - Same as OpenHamClock project
+
+---
+
+## 🙏 Credits
+
+- **WSPR Protocol**: Joe Taylor, K1JT
+- **PSK Reporter**: Philip Gladstone, N1DQ
+- **OpenHamClock**: K0CJH and contributors
+- **Plugin System**: OpenHamClock plugin architecture
+
+---
+
+## 📚 References
+
+- [WSPR Official Site](http://wsprnet.org/)
+- [PSK Reporter](https://pskreporter.info/)
+- [PSK Reporter API Docs](https://pskreporter.info/pskdev.html)
+- [Maidenhead Grid System](https://en.wikipedia.org/wiki/Maidenhead_Locator_System)
+- [Leaflet.js Docs](https://leafletjs.com/reference.html)
+
+---
+
+**Last Updated**: 2026-02-03  
+**Plugin Version**: 1.0.0  
+**OpenHamClock Version**: 3.12.0+
+
+---
+
+*73 de OpenHamClock Contributors! 📡*
