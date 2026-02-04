@@ -590,15 +590,15 @@ const App = () => {
             justifyContent: 'space-between',
             background: 'var(--bg-panel)',
             borderBottom: '1px solid var(--border-color)',
-            padding: '4px 12px',
-            height: '44px',
+            padding: '6px 12px',
+            height: '52px',
             flexShrink: 0,
-            gap: '8px'
+            gap: '10px'
           }}>
             {/* Callsign */}
             <span
               style={{
-                fontSize: '20px',
+                fontSize: '28px',
                 fontWeight: '900',
                 color: 'var(--accent-amber)',
                 fontFamily: 'Orbitron, monospace',
@@ -613,8 +613,8 @@ const App = () => {
 
             {/* UTC */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
-              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>UTC</span>
-              <span style={{ fontSize: '18px', fontWeight: '700', color: 'var(--accent-cyan)' }}>{utcTime}</span>
+              <span style={{ fontSize: '14px', color: 'var(--text-muted)', fontWeight: '600' }}>UTC</span>
+              <span style={{ fontSize: '24px', fontWeight: '700', color: 'var(--accent-cyan)' }}>{utcTime}</span>
             </div>
 
             {/* Local */}
@@ -623,12 +623,12 @@ const App = () => {
               onClick={handleTimeFormatToggle}
               title={`Click for ${use12Hour ? '24h' : '12h'} format`}
             >
-              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>LOC</span>
-              <span style={{ fontSize: '18px', fontWeight: '700', color: 'var(--accent-amber)' }}>{localTime}</span>
+              <span style={{ fontSize: '14px', color: 'var(--text-muted)', fontWeight: '600' }}>LOC</span>
+              <span style={{ fontSize: '24px', fontWeight: '700', color: 'var(--accent-amber)' }}>{localTime}</span>
             </div>
 
             {/* Solar Quick Stats */}
-            <div style={{ display: 'flex', gap: '8px', fontSize: '12px', whiteSpace: 'nowrap' }}>
+            <div style={{ display: 'flex', gap: '10px', fontSize: '15px', whiteSpace: 'nowrap' }}>
               <span>
                 <span style={{ color: 'var(--text-muted)' }}>SFI </span>
                 <span style={{ color: 'var(--accent-amber)', fontWeight: '700' }}>{solarIndices?.data?.sfi?.current || spaceWeather?.data?.solarFlux || '--'}</span>
@@ -703,7 +703,7 @@ const App = () => {
 
             {/* DATA SIDEBAR */}
             <div style={{
-              width: '220px',
+              width: '280px',
               flexShrink: 0,
               display: 'flex',
               flexDirection: 'column',
@@ -712,9 +712,9 @@ const App = () => {
               overflow: 'hidden'
             }}>
               {/* Band Conditions Grid */}
-              <div style={{ padding: '6px', borderBottom: '1px solid var(--border-color)' }}>
-                <div style={{ fontSize: '10px', color: 'var(--accent-amber)', fontWeight: '700', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Band Conditions</div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '3px' }}>
+              <div style={{ padding: '8px', borderBottom: '1px solid var(--border-color)' }}>
+                <div style={{ fontSize: '13px', color: 'var(--accent-amber)', fontWeight: '700', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Band Conditions</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '4px' }}>
                   {(bandConditions?.data || []).slice(0, 13).map((band, idx) => {
                     const colors = {
                       GOOD: { bg: 'rgba(0,255,136,0.2)', color: '#00ff88', border: 'rgba(0,255,136,0.4)' },
@@ -726,50 +726,50 @@ const App = () => {
                       <div key={idx} style={{
                         background: s.bg,
                         border: `1px solid ${s.border}`,
-                        borderRadius: '3px',
-                        padding: '3px 1px',
+                        borderRadius: '4px',
+                        padding: '5px 2px',
                         textAlign: 'center'
                       }}>
-                        <div style={{ fontFamily: 'Orbitron, monospace', fontSize: '11px', fontWeight: '700', color: s.color }}>{band.band}</div>
-                        <div style={{ fontSize: '8px', fontWeight: '600', color: s.color, opacity: 0.8 }}>{band.condition}</div>
+                        <div style={{ fontFamily: 'Orbitron, monospace', fontSize: '15px', fontWeight: '700', color: s.color }}>{band.band}</div>
+                        <div style={{ fontSize: '10px', fontWeight: '600', color: s.color, opacity: 0.8 }}>{band.condition}</div>
                       </div>
                     );
                   })}
                 </div>
                 {/* MUF/LUF */}
                 {propagation.data && (
-                  <div style={{ display: 'flex', gap: '8px', marginTop: '4px', fontSize: '10px', justifyContent: 'center' }}>
-                    <span><span style={{ color: 'var(--text-muted)' }}>MUF </span><span style={{ color: '#ff8800', fontWeight: '600' }}>{propagation.data.muf || '?'}</span></span>
-                    <span><span style={{ color: 'var(--text-muted)' }}>LUF </span><span style={{ color: '#00aaff', fontWeight: '600' }}>{propagation.data.luf || '?'}</span></span>
+                  <div style={{ display: 'flex', gap: '12px', marginTop: '6px', fontSize: '14px', justifyContent: 'center' }}>
+                    <span><span style={{ color: 'var(--text-muted)' }}>MUF </span><span style={{ color: '#ff8800', fontWeight: '700' }}>{propagation.data.muf || '?'}</span></span>
+                    <span><span style={{ color: 'var(--text-muted)' }}>LUF </span><span style={{ color: '#00aaff', fontWeight: '700' }}>{propagation.data.luf || '?'}</span></span>
                   </div>
                 )}
               </div>
 
               {/* Compact DX Cluster */}
               <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ padding: '4px 6px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '10px', color: 'var(--accent-red)', fontWeight: '700', textTransform: 'uppercase' }}>DX Cluster</span>
-                  <span style={{ fontSize: '9px', color: 'var(--text-muted)' }}>{dxCluster.data?.length || 0} spots</span>
+                <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '14px', color: 'var(--accent-red)', fontWeight: '700', textTransform: 'uppercase' }}>DX Cluster</span>
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{dxCluster.data?.length || 0} spots</span>
                 </div>
-                <div style={{ flex: 1, overflowY: 'auto', fontSize: '11px' }}>
+                <div style={{ flex: 1, overflowY: 'auto' }}>
                   {dxCluster.data?.slice(0, 30).map((spot, i) => (
                     <div
                       key={i}
                       style={{
-                        padding: '2px 6px',
+                        padding: '3px 8px',
                         display: 'grid',
-                        gridTemplateColumns: '55px 1fr 30px',
-                        gap: '3px',
-                        borderBottom: '1px solid rgba(255,255,255,0.04)',
+                        gridTemplateColumns: '70px 1fr 42px',
+                        gap: '4px',
+                        borderBottom: '1px solid rgba(255,255,255,0.05)',
                         cursor: 'pointer',
                         background: hoveredSpot?.call === spot.call ? 'var(--bg-tertiary)' : 'transparent',
-                        fontSize: '10px'
+                        fontSize: '14px'
                       }}
                       onMouseEnter={() => setHoveredSpot(spot)}
                       onMouseLeave={() => setHoveredSpot(null)}
                     >
-                      <span style={{ color: '#ffff00' }}>{parseFloat(spot.freq).toFixed(1)}</span>
-                      <span style={{ color: 'var(--accent-cyan)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{spot.call}</span>
+                      <span style={{ color: '#ffff00', fontWeight: '600' }}>{parseFloat(spot.freq).toFixed(1)}</span>
+                      <span style={{ color: 'var(--accent-cyan)', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{spot.call}</span>
                       <span style={{ color: 'var(--text-muted)', textAlign: 'right' }}>{spot.time || '--'}</span>
                     </div>
                   ))}
@@ -798,10 +798,10 @@ const App = () => {
             flexShrink: 0
           }}>
             {/* Row 1: Callsign + Times */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
               <span
                 style={{
-                  fontSize: '26px',
+                  fontSize: '32px',
                   fontWeight: '900',
                   color: 'var(--accent-amber)',
                   fontFamily: 'Orbitron, monospace',
@@ -812,20 +812,20 @@ const App = () => {
               >
                 {config.callsign}
               </span>
-              <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
                 <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>UTC</div>
-                  <div style={{ fontSize: '22px', fontWeight: '700', color: 'var(--accent-cyan)', lineHeight: 1 }}>{utcTime}</div>
-                  <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{utcDate}</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '600' }}>UTC</div>
+                  <div style={{ fontSize: '28px', fontWeight: '700', color: 'var(--accent-cyan)', lineHeight: 1 }}>{utcTime}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{utcDate}</div>
                 </div>
                 <div
                   style={{ textAlign: 'center', cursor: 'pointer' }}
                   onClick={handleTimeFormatToggle}
                   title={`Click for ${use12Hour ? '24h' : '12h'}`}
                 >
-                  <div style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Local</div>
-                  <div style={{ fontSize: '22px', fontWeight: '700', color: 'var(--accent-amber)', lineHeight: 1 }}>{localTime}</div>
-                  <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{localDate}</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '600' }}>Local</div>
+                  <div style={{ fontSize: '28px', fontWeight: '700', color: 'var(--accent-amber)', lineHeight: 1 }}>{localTime}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{localDate}</div>
                 </div>
               </div>
               <div style={{ display: 'flex', gap: '4px' }}>
@@ -834,10 +834,10 @@ const App = () => {
                   style={{
                     background: 'var(--bg-tertiary)',
                     border: '1px solid var(--border-color)',
-                    padding: '4px 8px',
+                    padding: '6px 10px',
                     borderRadius: '4px',
                     color: 'var(--text-secondary)',
-                    fontSize: '12px',
+                    fontSize: '14px',
                     cursor: 'pointer'
                   }}
                 >⚙</button>
@@ -846,17 +846,17 @@ const App = () => {
                   style={{
                     background: 'var(--bg-tertiary)',
                     border: '1px solid var(--border-color)',
-                    padding: '4px 8px',
+                    padding: '6px 10px',
                     borderRadius: '4px',
                     color: 'var(--text-secondary)',
-                    fontSize: '12px',
+                    fontSize: '14px',
                     cursor: 'pointer'
                   }}
                 >⛶</button>
               </div>
             </div>
             {/* Row 2: Solar indices inline */}
-            <div style={{ display: 'flex', gap: '12px', fontSize: '12px', justifyContent: 'center' }}>
+            <div style={{ display: 'flex', gap: '16px', fontSize: '15px', justifyContent: 'center' }}>
               <span>
                 <span style={{ color: 'var(--text-muted)' }}>SFI </span>
                 <span style={{ color: 'var(--accent-amber)', fontWeight: '700' }}>{solarIndices?.data?.sfi?.current || spaceWeather?.data?.solarFlux || '--'}</span>
@@ -894,12 +894,12 @@ const App = () => {
 
           {/* BAND CONDITIONS - Full Width */}
           <div style={{
-            padding: '6px 12px',
+            padding: '8px 12px',
             borderBottom: '1px solid var(--border-color)',
             background: 'var(--bg-secondary)',
             flexShrink: 0
           }}>
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '4px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '5px', flexWrap: 'wrap' }}>
               {(bandConditions?.data || []).slice(0, 13).map((band, idx) => {
                 const colors = {
                   GOOD: { bg: 'rgba(0,255,136,0.2)', color: '#00ff88', border: 'rgba(0,255,136,0.4)' },
@@ -912,12 +912,12 @@ const App = () => {
                     background: s.bg,
                     border: `1px solid ${s.border}`,
                     borderRadius: '4px',
-                    padding: '4px 8px',
+                    padding: '5px 10px',
                     textAlign: 'center',
-                    minWidth: '52px'
+                    minWidth: '58px'
                   }}>
-                    <div style={{ fontFamily: 'Orbitron, monospace', fontSize: '13px', fontWeight: '700', color: s.color }}>{band.band}</div>
-                    <div style={{ fontSize: '9px', fontWeight: '600', color: s.color, opacity: 0.8 }}>{band.condition}</div>
+                    <div style={{ fontFamily: 'Orbitron, monospace', fontSize: '16px', fontWeight: '700', color: s.color }}>{band.band}</div>
+                    <div style={{ fontSize: '11px', fontWeight: '600', color: s.color, opacity: 0.8 }}>{band.condition}</div>
                   </div>
                 );
               })}
@@ -954,10 +954,10 @@ const App = () => {
                 bottom: '6px',
                 left: '50%',
                 transform: 'translateX(-50%)',
-                fontSize: '11px',
+                fontSize: '14px',
                 color: 'var(--text-muted)',
                 background: 'rgba(0,0,0,0.7)',
-                padding: '2px 8px',
+                padding: '3px 10px',
                 borderRadius: '4px'
               }}>
                 {deGrid} → {dxGrid} • Click map to set DX
@@ -966,7 +966,7 @@ const App = () => {
 
             {/* Compact DX Cluster */}
             <div style={{
-              width: '200px',
+              width: '250px',
               flexShrink: 0,
               borderLeft: '1px solid var(--border-color)',
               background: 'var(--bg-secondary)',
@@ -974,29 +974,29 @@ const App = () => {
               flexDirection: 'column',
               overflow: 'hidden'
             }}>
-              <div style={{ padding: '4px 6px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '10px', color: 'var(--accent-red)', fontWeight: '700', textTransform: 'uppercase' }}>DX Cluster</span>
-                <span style={{ fontSize: '9px', color: 'var(--text-muted)' }}>{dxCluster.data?.length || 0}</span>
+              <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '14px', color: 'var(--accent-red)', fontWeight: '700', textTransform: 'uppercase' }}>DX Cluster</span>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{dxCluster.data?.length || 0}</span>
               </div>
               <div style={{ flex: 1, overflowY: 'auto' }}>
                 {dxCluster.data?.slice(0, 40).map((spot, i) => (
                   <div
                     key={i}
                     style={{
-                      padding: '2px 6px',
+                      padding: '3px 8px',
                       display: 'grid',
-                      gridTemplateColumns: '50px 1fr 28px',
-                      gap: '3px',
-                      borderBottom: '1px solid rgba(255,255,255,0.04)',
+                      gridTemplateColumns: '65px 1fr 38px',
+                      gap: '4px',
+                      borderBottom: '1px solid rgba(255,255,255,0.05)',
                       cursor: 'pointer',
                       background: hoveredSpot?.call === spot.call ? 'var(--bg-tertiary)' : 'transparent',
-                      fontSize: '10px'
+                      fontSize: '14px'
                     }}
                     onMouseEnter={() => setHoveredSpot(spot)}
                     onMouseLeave={() => setHoveredSpot(null)}
                   >
-                    <span style={{ color: '#ffff00' }}>{parseFloat(spot.freq).toFixed(1)}</span>
-                    <span style={{ color: 'var(--accent-cyan)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{spot.call}</span>
+                    <span style={{ color: '#ffff00', fontWeight: '600' }}>{parseFloat(spot.freq).toFixed(1)}</span>
+                    <span style={{ color: 'var(--accent-cyan)', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{spot.call}</span>
                     <span style={{ color: 'var(--text-muted)', textAlign: 'right' }}>{spot.time || '--'}</span>
                   </div>
                 ))}
