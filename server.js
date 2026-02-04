@@ -2267,31 +2267,35 @@ function fetchRBNSpotsRealtime(userCallsign, collectSeconds = 10, port = 7000) {
     let dataBuffer = '';
     let authenticated = false;
     
+    console.log(`[RBN] Creating connection to telnet.reversebeacon.net:${port}...`);
+    
     const client = net.createConnection({ 
       host: 'telnet.reversebeacon.net', 
       port: port 
     }, () => {
-      console.log(`[RBN] Connected to telnet.reversebeacon.net:${port}`);
+      console.log(`[RBN] Connected successfully, waiting for prompt...`);
     });
 
     client.setTimeout(collectSeconds * 1000 + 5000); // Collection time + 5s buffer
+    client.setEncoding('utf8'); // Ensure proper encoding
     
     client.on('data', (data) => {
-      dataBuffer += data.toString('utf8');
+      console.log(`[RBN] Received ${data.length} bytes of data`);
+      dataBuffer += data;
       const lines = dataBuffer.split('\n');
       dataBuffer = lines.pop() || ''; // Keep incomplete line in buffer
       
       for (const line of lines) {
         // Debug: log raw lines
         if (line.trim()) {
-          console.log(`[RBN] Raw: ${line.substring(0, 100)}`);
+          console.log(`[RBN] Raw: ${line.substring(0, 120)}`);
         }
         
         // Handle authentication prompt
         if (line.includes('Please enter your call:') && !authenticated) {
+          console.log(`[RBN] Sending callsign: ${userCallsign}`);
           client.write(`${userCallsign}\n`);
           authenticated = true;
-          console.log(`[RBN] Authenticated as ${userCallsign}`);
           continue;
         }
         
