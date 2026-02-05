@@ -358,10 +358,9 @@ const App = () => {
           dxSunTimes={dxSunTimes}
           handleDXChange={handleDXChange}
           localWeather={localWeather}
-          weatherExpanded={weatherExpanded}
-          setWeatherExpanded={setWeatherExpanded}
           tempUnit={tempUnit}
           setTempUnit={setTempUnit}
+          showDxWeather={showDxWeather}
           spaceWeather={spaceWeather}
           solarIndices={solarIndices}
           bandConditions={bandConditions}

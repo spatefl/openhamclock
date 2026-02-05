@@ -15,7 +15,8 @@ import {
   SolarPanel,
   PropagationPanel,
   DXpeditionPanel,
-  PSKReporterPanel
+  PSKReporterPanel,
+  WeatherPanel
 } from './components';
 
 import { loadLayout, saveLayout, DEFAULT_LAYOUT } from './store/layoutStore.js';
@@ -43,10 +44,9 @@ export const DockableApp = ({
 
   // Weather
   localWeather,
-  weatherExpanded,
-  setWeatherExpanded,
   tempUnit,
   setTempUnit,
+  showDxWeather,
 
   // Space weather & solar
   spaceWeather,
@@ -155,18 +155,11 @@ export const DockableApp = ({
           <span style={{ color: 'var(--accent-purple)', fontWeight: '600' }}>{deSunTimes.sunset}</span>
         </div>
       </div>
-      {/* Weather section */}
-      {localWeather.data && (
-        <div style={{ marginTop: '12px', borderTop: '1px solid var(--border-color)', paddingTop: '10px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '20px' }}>{localWeather.data.icon}</span>
-            <span style={{ fontSize: '18px', fontWeight: '700', color: 'var(--text-primary)', fontFamily: 'Orbitron, monospace' }}>
-              {localWeather.data.temp}°{localWeather.data.tempUnit || tempUnit}
-            </span>
-            <span style={{ fontSize: '11px', color: 'var(--text-secondary)', flex: 1 }}>{localWeather.data.description}</span>
-          </div>
-        </div>
-      )}
+      <WeatherPanel
+        location={config.location}
+        tempUnit={tempUnit}
+        onTempUnitChange={(unit) => { setTempUnit(unit); try { localStorage.setItem('openhamclock_tempUnit', unit); } catch {} }}
+      />
     </div>
   );
 
@@ -184,6 +177,13 @@ export const DockableApp = ({
           <span style={{ color: 'var(--accent-purple)', fontWeight: '600' }}>{dxSunTimes.sunset}</span>
         </div>
       </div>
+      {showDxWeather && (
+        <WeatherPanel
+          location={dxLocation}
+          tempUnit={tempUnit}
+          onTempUnitChange={(unit) => { setTempUnit(unit); try { localStorage.setItem('openhamclock_tempUnit', unit); } catch {} }}
+        />
+      )}
     </div>
   );
 
@@ -295,7 +295,7 @@ export const DockableApp = ({
         );
     }
   }, [
-    config, deGrid, dxGrid, dxLocation, deSunTimes, dxSunTimes, localWeather, solarIndices,
+    config, deGrid, dxGrid, dxLocation, deSunTimes, dxSunTimes, showDxWeather, tempUnit, solarIndices,
     propagation, bandConditions, dxCluster, dxFilters, hoveredSpot, mapLayers, potaSpots,
     mySpots, dxPaths, satellites, filteredPskSpots, wsjtxMapSpots, dxpeditions, contests,
     pskFilters, wsjtx, handleDXChange, setDxFilters, setShowDXFilters, setShowPSKFilters,
