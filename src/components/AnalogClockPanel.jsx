@@ -36,9 +36,21 @@ export const AnalogClockPanel = ({ currentTime, sunTimes }) => {
   const minuteAngle = ((minutes + seconds / 60) / 60) * 360;
   const hourAngle = ((hours % 12 + minutes / 60) / 12) * 360;
 
-  // Format date info
+  // Format date info (already local)
   const dayOfWeek = time.toLocaleDateString([], { weekday: 'short' });
   const monthDate = time.toLocaleDateString([], { month: 'short', day: 'numeric' });
+
+  // Convert UTC sun times to local time
+  const utcToLocal = (utcTimeStr) => {
+    if (!utcTimeStr || utcTimeStr.includes(' ')) return utcTimeStr; // Handle "Polar night" etc.
+    const [h, m] = utcTimeStr.split(':').map(Number);
+    const utcDate = new Date();
+    utcDate.setUTCHours(h, m, 0, 0);
+    return utcDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+  };
+
+  const localSunrise = sunTimes ? utcToLocal(sunTimes.sunrise) : null;
+  const localSunset = sunTimes ? utcToLocal(sunTimes.sunset) : null;
 
   const clockRadius = size / 2;
   const center = size / 2;
@@ -152,6 +164,20 @@ export const AnalogClockPanel = ({ currentTime, sunTimes }) => {
         {/* Hour numbers */}
         {numbers}
 
+        {/* LOCAL label */}
+        <text
+          x={center}
+          y={center + clockRadius * 0.32}
+          textAnchor="middle"
+          dominantBaseline="central"
+          fill="var(--accent-cyan)"
+          fontSize={size > 150 ? 10 : 8}
+          fontFamily="JetBrains Mono, monospace"
+          fontWeight="600"
+        >
+          LOCAL
+        </text>
+
         {/* Hour hand */}
         <Hand
           angle={hourAngle}
@@ -180,7 +206,7 @@ export const AnalogClockPanel = ({ currentTime, sunTimes }) => {
         <circle cx={center} cy={center} r={4} fill="var(--accent-cyan)" />
       </svg>
 
-      {/* Bottom row: Sunrise (left) and Sunset (right) */}
+      {/* Bottom row: Sunrise (left) and Sunset (right) - in local time */}
       {sunTimes && (
         <div
           style={{
@@ -194,10 +220,10 @@ export const AnalogClockPanel = ({ currentTime, sunTimes }) => {
         >
           <span style={{ color: 'var(--accent-amber)' }}>
             <span style={{ marginRight: '2px' }}>&#9788;</span>
-            {sunTimes.sunrise}
+            {localSunrise}
           </span>
           <span style={{ color: 'var(--accent-purple)' }}>
-            {sunTimes.sunset}
+            {localSunset}
             <span style={{ marginLeft: '2px' }}>&#9790;</span>
           </span>
         </div>
