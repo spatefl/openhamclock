@@ -138,8 +138,11 @@ export const DXFilterManager = ({ filters, onFilterChange, isOpen, onClose }) =>
     <div>
       {/* Continents */}
       <div style={{ marginBottom: '20px' }}>
-        <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '10px' }}>
-          Include Spotter (DE) Continents
+        <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '4px' }}>
+          Spotter (DE) Continent
+        </div>
+        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '10px' }}>
+          Shows spots FROM these continents reporting DX OUTSIDE these continents
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
           {continents.map(c => (
@@ -157,7 +160,7 @@ export const DXFilterManager = ({ filters, onFilterChange, isOpen, onClose }) =>
       {/* CQ Zones */}
       <div style={{ marginBottom: '20px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-          <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)' }}>Include Spotter (DE) Zones</span>
+          <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)' }}>Spotter (DE) CQ Zones</span>
           <div style={{ display: 'flex', gap: '12px' }}>
             <button onClick={() => selectAll('cqZones', Array.from({length: 40}, (_, i) => i + 1))} style={{ background: 'none', border: 'none', color: 'var(--accent-cyan)', fontSize: '12px', cursor: 'pointer' }}>Select All</button>
             <button onClick={() => clearFilter('cqZones')} style={{ background: 'none', border: 'none', color: 'var(--accent-red)', fontSize: '12px', cursor: 'pointer' }}>Clear</button>
@@ -179,7 +182,7 @@ export const DXFilterManager = ({ filters, onFilterChange, isOpen, onClose }) =>
       {/* ITU Zones */}
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-          <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)' }}>Include Spotter (DE) ITU Zones</span>
+          <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)' }}>Spotter (DE) ITU Zones</span>
           <div style={{ display: 'flex', gap: '12px' }}>
             <button onClick={() => selectAll('ituZones', Array.from({length: 90}, (_, i) => i + 1))} style={{ background: 'none', border: 'none', color: 'var(--accent-cyan)', fontSize: '12px', cursor: 'pointer' }}>Select All</button>
             <button onClick={() => clearFilter('ituZones')} style={{ background: 'none', border: 'none', color: 'var(--accent-red)', fontSize: '12px', cursor: 'pointer' }}>Clear</button>

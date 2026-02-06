@@ -24,6 +24,8 @@ export const useDXClusterData = (filters = {}) => {
       // Get spotter info for origin-based filtering
       const spotterInfo = getCallsignInfo(item.spotter);
       const call = item.dxCall || item.call;
+      // Get DX station info for destination-based filtering
+      const dxInfo = getCallsignInfo(call);
       
       // Watchlist only mode
       if (filters.watchlistOnly && filters.watchlist?.length > 0) {
@@ -55,9 +57,14 @@ export const useDXClusterData = (filters = {}) => {
         }
       }
       
-      // Continent filter (by spotter's continent)
+      // Continent filter (spotter FROM selected continent, DX OUTSIDE that continent)
       if (filters.continents?.length > 0) {
+        // Spotter must be from one of the selected continents
         if (!spotterInfo.continent || !filters.continents.includes(spotterInfo.continent)) {
+          return false;
+        }
+        // DX must be OUTSIDE all selected continents (to show actual DX, not domestic)
+        if (dxInfo.continent && filters.continents.includes(dxInfo.continent)) {
           return false;
         }
       }
