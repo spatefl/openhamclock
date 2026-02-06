@@ -351,7 +351,7 @@ function addMinimizeToggle(element, storageKey) {
   });
 }
 
-export function useLayer({ enabled = false, opacity = 0.7, map = null, callsign, locator }) {
+export function useLayer({ enabled = false, opacity = 0.7, map = null, callsign, locator, lowMemoryMode = false }) {
   const [pathLayers, setPathLayers] = useState([]);
   const [markerLayers, setMarkerLayers] = useState([]);
   const [heatmapLayer, setHeatmapLayer] = useState(null);
@@ -361,10 +361,14 @@ export function useLayer({ enabled = false, opacity = 0.7, map = null, callsign,
   
   // v1.2.0 - Advanced Filters
   const [bandFilter, setBandFilter] = useState('all');
-  const [timeWindow, setTimeWindow] = useState(30); // minutes
+  const [timeWindow, setTimeWindow] = useState(lowMemoryMode ? 15 : 30); // minutes - shorter in low memory
   const [snrThreshold, setSNRThreshold] = useState(-30); // dB
-  const [showAnimation, setShowAnimation] = useState(true);
+  const [showAnimation, setShowAnimation] = useState(!lowMemoryMode); // Disable animations in low memory mode
   const [showHeatmap, setShowHeatmap] = useState(false);
+  
+  // Low memory mode limits
+  const MAX_PATHS = lowMemoryMode ? 100 : 10000;
+  const MAX_HEATMAP_POINTS = lowMemoryMode ? 50 : 500;
   
   // v1.4.3 - Separate opacity controls
   const [pathOpacity, setPathOpacity] = useState(0.7);
@@ -918,7 +922,7 @@ export function useLayer({ enabled = false, opacity = 0.7, map = null, callsign,
       });
       console.log(`[WSPR Grid] No matches for ${gridFilter}. Available grids in data:`, Array.from(availableGrids).join(', '));
     }
-    const limitedData = filteredData.slice(0, 10000); // Show up to 10k spots (backend limit)
+    const limitedData = filteredData.slice(0, MAX_PATHS); // Limit paths based on memory mode
     
     // Find best DX paths (longest distance, good SNR)
     const bestPaths = limitedData

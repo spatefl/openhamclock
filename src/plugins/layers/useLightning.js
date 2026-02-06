@@ -232,7 +232,7 @@ function addMinimizeToggle(element, storageKey) {
   });
 }
 
-export function useLayer({ enabled = false, opacity = 0.9, map = null }) {
+export function useLayer({ enabled = false, opacity = 0.9, map = null, lowMemoryMode = false }) {
   const [strikeMarkers, setStrikeMarkers] = useState([]);
   const [lightningData, setLightningData] = useState([]);
   const [statsControl, setStatsControl] = useState(null);
@@ -245,6 +245,10 @@ export function useLayer({ enabled = false, opacity = 0.9, map = null }) {
   const previousStrikeIds = useRef(new Set());
   const currentServerIndexRef = useRef(0); // Track which server we're using
   const connectionAttemptsRef = useRef(0); // Track connection attempts
+  
+  // Low memory mode limits
+  const MAX_STRIKES = lowMemoryMode ? 100 : 500;
+  const STRIKE_RETENTION_MS = lowMemoryMode ? 60000 : 300000; // 1 min vs 5 min
 
   // Fetch WebSocket key from Blitzortung (fallback to 111)
   useEffect(() => {
@@ -305,11 +309,11 @@ export function useLayer({ enabled = false, opacity = 0.9, map = null }) {
               // Add to buffer
               strikesBufferRef.current.push(strike);
               
-              // Keep only last 30 minutes of strikes
-              const thirtyMinutesAgo = Date.now() - (30 * 60 * 1000);
-              strikesBufferRef.current = strikesBufferRef.current.filter(
-                s => s.timestamp > thirtyMinutesAgo
-              );
+              // Keep only strikes within retention window
+              const cutoffTime = Date.now() - STRIKE_RETENTION_MS;
+              strikesBufferRef.current = strikesBufferRef.current
+                .filter(s => s.timestamp > cutoffTime)
+                .slice(-MAX_STRIKES); // Keep only most recent MAX_STRIKES
 
               // Update state every second to batch updates
               if (!reconnectTimerRef.current) {

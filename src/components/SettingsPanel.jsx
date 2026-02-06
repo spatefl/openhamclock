@@ -18,6 +18,7 @@ export const SettingsPanel = ({ isOpen, onClose, config, onSave, onResetLayout, 
   const [timezone, setTimezone] = useState(config?.timezone || '');
   const [dxClusterSource, setDxClusterSource] = useState(config?.dxClusterSource || 'dxspider-proxy');
   const [customDxCluster, setCustomDxCluster] = useState(config?.customDxCluster || { enabled: false, host: '', port: 7300 });
+  const [lowMemoryMode, setLowMemoryMode] = useState(config?.lowMemoryMode || false);
   const { t, i18n } = useTranslation();
 
   // Layer controls
@@ -35,6 +36,7 @@ export const SettingsPanel = ({ isOpen, onClose, config, onSave, onResetLayout, 
       setTimezone(config.timezone || '');
       setDxClusterSource(config.dxClusterSource || 'dxspider-proxy');
       setCustomDxCluster(config.customDxCluster || { enabled: false, host: '', port: 7300 });
+      setLowMemoryMode(config.lowMemoryMode || false);
       if (config.location?.lat && config.location?.lon) {
         setGridSquare(calculateGridSquare(config.location.lat, config.location.lon));
       }
@@ -157,7 +159,8 @@ export const SettingsPanel = ({ isOpen, onClose, config, onSave, onResetLayout, 
       layout,
       timezone,
       dxClusterSource,
-      customDxCluster
+      customDxCluster,
+      lowMemoryMode
     });
     onClose();
   };
@@ -642,7 +645,51 @@ export const SettingsPanel = ({ isOpen, onClose, config, onSave, onResetLayout, 
               </div>
             </div>
 
-            {/* DX Cluster Source - original */}
+            {/* Low Memory Mode */}
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                🧠 Performance Mode
+              </label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  onClick={() => setLowMemoryMode(false)}
+                  style={{
+                    flex: 1,
+                    padding: '10px',
+                    background: !lowMemoryMode ? 'var(--accent-amber)' : 'var(--bg-tertiary)',
+                    border: `1px solid ${!lowMemoryMode ? 'var(--accent-amber)' : 'var(--border-color)'}`,
+                    borderRadius: '6px',
+                    color: !lowMemoryMode ? '#000' : 'var(--text-secondary)',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    fontWeight: !lowMemoryMode ? '600' : '400'
+                  }}
+                >
+                  🚀 Full
+                </button>
+                <button
+                  onClick={() => setLowMemoryMode(true)}
+                  style={{
+                    flex: 1,
+                    padding: '10px',
+                    background: lowMemoryMode ? 'var(--accent-green)' : 'var(--bg-tertiary)',
+                    border: `1px solid ${lowMemoryMode ? 'var(--accent-green)' : 'var(--border-color)'}`,
+                    borderRadius: '6px',
+                    color: lowMemoryMode ? '#000' : 'var(--text-secondary)',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    fontWeight: lowMemoryMode ? '600' : '400'
+                  }}
+                >
+                  🪶 Low Memory
+                </button>
+              </div>
+              <div style={{ fontSize: '11px', color: lowMemoryMode ? 'var(--accent-green)' : 'var(--text-muted)', marginTop: '6px' }}>
+                {lowMemoryMode 
+                  ? '✓ Low Memory Mode: Reduced animations, fewer map markers, smaller spot limits. Recommended for systems with <8GB RAM.'
+                  : 'Full Mode: All features enabled. Requires 8GB+ RAM for best performance.'}
+              </div>
+            </div>
             <div style={{ marginBottom: '20px' }}>
               <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px' }}>
                 {t('station.settings.dx.title')}

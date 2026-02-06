@@ -14,7 +14,7 @@ export const useDXClusterData = (filters = {}, config = {}) => {
   const lastFetchRef = useRef(0);
   
   const spotRetentionMs = (filters?.spotRetentionMinutes || 30) * 60 * 1000;
-  const pollInterval = 30000;
+  const pollInterval = config.lowMemoryMode ? 60000 : 30000; // 60s in low memory, 30s otherwise
 
   // Build query params for custom cluster settings
   const buildQueryParams = useCallback(() => {
@@ -177,8 +177,13 @@ export const useDXClusterData = (filters = {}, config = {}) => {
   useEffect(() => {
     const filtered = applyFilters(allData, filters);
     
+    // Low memory mode limits
+    const lowMemoryMode = config.lowMemoryMode || false;
+    const MAX_SPOTS = lowMemoryMode ? 50 : 500;
+    const MAX_PATHS = lowMemoryMode ? 25 : 200;
+    
     // Format for list display (matches old useDXCluster format)
-    const spotList = filtered.map(item => ({
+    const spotList = filtered.slice(0, MAX_SPOTS).map(item => ({
       call: item.dxCall,
       freq: item.freq,
       comment: item.comment || '',
@@ -193,11 +198,11 @@ export const useDXClusterData = (filters = {}, config = {}) => {
     const pathList = filtered.filter(item => 
       item.spotterLat != null && item.spotterLon != null &&
       item.dxLat != null && item.dxLon != null
-    );
+    ).slice(0, MAX_PATHS);
     
     setSpots(spotList);
     setPaths(pathList);
-  }, [allData, filters, applyFilters]);
+  }, [allData, filters, applyFilters, config.lowMemoryMode]);
 
   return { 
     spots,           // For DXClusterPanel list

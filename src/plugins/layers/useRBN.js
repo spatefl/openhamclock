@@ -370,13 +370,17 @@ function freqToBand(freq) {
   return 'Other';
 }
 
-export function useLayer({ enabled = false, opacity = 0.7, map = null, callsign }) {
+export function useLayer({ enabled = false, opacity = 0.7, map = null, callsign, lowMemoryMode = false }) {
   const [spots, setSpots] = useState([]);
   const [selectedBand, setSelectedBand] = useState('all');
-  const [timeWindow, setTimeWindow] = useState(5); // minutes (0.1 = 6 seconds, 15 = 15 minutes)
+  const [timeWindow, setTimeWindow] = useState(lowMemoryMode ? 2 : 5); // minutes - shorter in low memory
   const [minSNR, setMinSNR] = useState(-10);
   const [showPaths, setShowPaths] = useState(true);
   const [stats, setStats] = useState({ total: 0, skimmers: 0, avgSNR: 0 });
+  
+  // Low memory mode limits
+  const MAX_SPOTS = lowMemoryMode ? 25 : 200;
+  const UPDATE_INTERVAL = lowMemoryMode ? 30000 : 10000; // 30s vs 10s
   
   const layersRef = useRef([]);
   const controlRef = useRef(null);
@@ -549,7 +553,7 @@ export function useLayer({ enabled = false, opacity = 0.7, map = null, callsign 
   useEffect(() => {
     if (enabled && callsign && callsign !== 'N0CALL') {
       fetchRBNSpots();
-      updateIntervalRef.current = setInterval(fetchRBNSpots, 10000); // Update every 10 seconds for real-time
+      updateIntervalRef.current = setInterval(fetchRBNSpots, UPDATE_INTERVAL);
     }
     
     return () => {

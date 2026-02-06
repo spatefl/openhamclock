@@ -40,7 +40,8 @@ export const WorldMap = ({
   onToggleSatellites, 
   hoveredSpot,
   callsign = 'N0CALL',
-  hideOverlays
+  hideOverlays,
+  lowMemoryMode = false
 }) => {
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
@@ -793,6 +794,7 @@ export const WorldMap = ({
           map={mapInstanceRef.current}
           callsign={callsign}
           locator={deLocator}
+          lowMemoryMode={lowMemoryMode}
         />
       ))}
       

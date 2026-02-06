@@ -260,6 +260,9 @@ const App = () => {
     saveConfig(newConfig);
     applyTheme(newConfig.theme || 'dark');
     console.log('[Config] Saved to localStorage:', newConfig.callsign);
+    if (newConfig.lowMemoryMode) {
+      console.log('[Config] Low Memory Mode ENABLED - reduced spot limits, disabled animations');
+    }
   };
 
   // Data hooks
@@ -309,7 +312,11 @@ const App = () => {
     : satellites.data;
   
   const localWeather = useWeather(config.location, tempUnit);
-  const pskReporter = usePSKReporter(config.callsign, { minutes: 15, enabled: config.callsign !== 'N0CALL' });
+  const pskReporter = usePSKReporter(config.callsign, { 
+    minutes: config.lowMemoryMode ? 5 : 15, 
+    enabled: config.callsign !== 'N0CALL',
+    maxSpots: config.lowMemoryMode ? 30 : 100
+  });
   const wsjtx = useWSJTX();
 
   // Filter PSKReporter spots for map display
@@ -707,6 +714,7 @@ const App = () => {
                 onToggleSatellites={toggleSatellites}
                 hoveredSpot={hoveredSpot}
                 callsign={config.callsign}
+                lowMemoryMode={config.lowMemoryMode}
               />
               
               {/* Settings button overlay */}
@@ -919,6 +927,7 @@ const App = () => {
                 onToggleSatellites={toggleSatellites}
                 hoveredSpot={hoveredSpot}
                 hideOverlays={true}
+                lowMemoryMode={config.lowMemoryMode}
               />
               {/* DX Lock button overlay */}
               <button
@@ -1256,6 +1265,7 @@ const App = () => {
                 onToggleSatellites={toggleSatellites}
                 hoveredSpot={hoveredSpot}
                 hideOverlays={true}
+                lowMemoryMode={config.lowMemoryMode}
               />
               <div style={{
                 position: 'absolute',
@@ -1580,6 +1590,7 @@ const App = () => {
             onToggleSatellites={toggleSatellites}
             hoveredSpot={hoveredSpot}
             callsign={config.callsign}
+            lowMemoryMode={config.lowMemoryMode}
           />
           <div style={{ 
             position: 'absolute', 
