@@ -406,6 +406,8 @@ export function useLayer({ enabled = false, opacity = 0.7, map = null, callsign,
   const [dataSource, setDataSource] = useState('connecting');
 
   useEffect(() => {
+    console.log('[WSPR MQTT] Effect triggered - enabled:', enabled, 'filterByGrid:', filterByGrid, 'callsign:', callsign);
+    
     if (!enabled) {
       // Disconnect MQTT when disabled
       if (clientRef.current) {
@@ -608,17 +610,31 @@ export function useLayer({ enabled = false, opacity = 0.7, map = null, callsign,
     });
 
     client.on('error', (err) => {
-      console.error('[WSPR MQTT] Connection error:', err);
+      console.error('[WSPR MQTT] Connection error:', err.message || err);
       setMqttConnected(false);
     });
 
     client.on('close', () => {
-      console.log('[WSPR MQTT] Connection closed');
+      console.log('[WSPR MQTT] Connection closed - reason unknown');
       setMqttConnected(false);
       if (client._updateTimer) {
         clearInterval(client._updateTimer);
         client._updateTimer = null;
       }
+    });
+    
+    client.on('offline', () => {
+      console.log('[WSPR MQTT] Client went offline');
+      setMqttConnected(false);
+    });
+    
+    client.on('disconnect', () => {
+      console.log('[WSPR MQTT] Client disconnected');
+      setMqttConnected(false);
+    });
+    
+    client.on('reconnect', () => {
+      console.log('[WSPR MQTT] Attempting to reconnect...');
     });
 
     // Fallback to HTTP after 15 seconds if MQTT doesn't connect

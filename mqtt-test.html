@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MQTT PSK Reporter Test</title>
+    <script src="https://unpkg.com/mqtt@5.3.4/dist/mqtt.min.js"></script>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #00ff00;
+        }
+        #output {
+            background: #000;
+            padding: 10px;
+            height: 500px;
+            overflow-y: auto;
+            border: 1px solid #00ff00;
+            margin-top: 10px;
+        }
+        .log { color: #00ff00; }
+        .error { color: #ff0000; }
+        .message { color: #ffff00; }
+        button {
+            background: #00ff00;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            font-family: monospace;
+        }
+        input {
+            background: #000;
+            color: #00ff00;
+            border: 1px solid #00ff00;
+            padding: 5px;
+            font-family: monospace;
+            width: 200px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔴 MQTT PSK Reporter Live Test</h1>
+    
+    <div>
+        <label>Callsign: <input type="text" id="callsign" value="VE3TOS" /></label>
+        <button onclick="connectTX()">Connect TX Only</button>
+        <button onclick="connectRX()">Connect RX Only</button>
+        <button onclick="connectAll()">Connect ALL WSPR</button>
+        <button onclick="disconnect()">Disconnect</button>
+        <button onclick="clearLog()">Clear Log</button>
+    </div>
+    
+    <div id="stats" style="margin-top: 10px; padding: 10px; background: #000; border: 1px solid #00ff00;">
+        Status: <span id="status">Disconnected</span> | 
+        Messages: <span id="count">0</span> | 
+        Subscribed: <span id="topic">None</span>
+    </div>
+    
+    <div id="output"></div>
+
+    <script>
+        let client = null;
+        let messageCount = 0;
+
+        function log(msg, type = 'log') {
+            const output = document.getElementById('output');
+            const timestamp = new Date().toISOString().split('T')[1].slice(0, -1);
+            output.innerHTML += `<div class="${type}">[${timestamp}] ${msg}</div>`;
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function updateStatus(status) {
+            document.getElementById('status').textContent = status;
+        }
+
+        function updateTopic(topic) {
+            document.getElementById('topic').textContent = topic;
+        }
+
+        function updateCount() {
+            document.getElementById('count').textContent = messageCount;
+        }
+
+        function clearLog() {
+            document.getElementById('output').innerHTML = '';
+            messageCount = 0;
+            updateCount();
+        }
+
+        function disconnect() {
+            if (client) {
+                log('Disconnecting...', 'log');
+                client.end();
+                client = null;
+                updateStatus('Disconnected');
+                updateTopic('None');
+            }
+        }
+
+        function connect(topics) {
+            disconnect();
+            
+            const clientId = 'mqtt_test_' + Math.random().toString(16).slice(2, 10);
+            log(`Connecting to mqtt.pskreporter.info with clientId: ${clientId}`, 'log');
+            
+            client = mqtt.connect('wss://mqtt.pskreporter.info:1886', {
+                clientId: clientId,
+                clean: true,
+                reconnectPeriod: 5000,
+                connectTimeout: 10000,
+                keepalive: 60
+            });
+
+            client.on('connect', () => {
+                log('✅ Connected!', 'log');
+                updateStatus('Connected');
+                
+                topics.forEach(topic => {
+                    log(`Subscribing to: ${topic}`, 'log');
+                    client.subscribe(topic, { qos: 0 }, (err) => {
+                        if (err) {
+                            log(`❌ Subscribe error for ${topic}: ${err.message}`, 'error');
+                        } else {
+                            log(`✅ Subscribed to: ${topic}`, 'log');
+                            updateTopic(topics.join(', '));
+                        }
+                    });
+                });
+            });
+
+            client.on('message', (topic, message) => {
+                messageCount++;
+                updateCount();
+                
+                try {
+                    const msg = JSON.parse(message.toString());
+                    const logMsg = `📡 [${topic}] ${msg.sc || '?'} → ${msg.rc || '?'} | ${(msg.f/1000000).toFixed(3)} MHz | SNR ${msg.rp} dB | ${msg.sl} → ${msg.rl}`;
+                    log(logMsg, 'message');
+                    log(`   Raw: ${JSON.stringify(msg)}`, 'message');
+                } catch (e) {
+                    log(`⚠️ Parse error: ${e.message}`, 'error');
+                    log(`   Data: ${message.toString()}`, 'error');
+                }
+            });
+
+            client.on('error', (err) => {
+                log(`❌ Error: ${err.message}`, 'error');
+                updateStatus('Error');
+            });
+
+            client.on('close', () => {
+                log('⚠️ Connection closed', 'error');
+                updateStatus('Closed');
+            });
+
+            client.on('offline', () => {
+                log('⚠️ Client offline', 'error');
+                updateStatus('Offline');
+            });
+
+            client.on('reconnect', () => {
+                log('🔄 Reconnecting...', 'log');
+                updateStatus('Reconnecting...');
+            });
+        }
+
+        function connectTX() {
+            const callsign = document.getElementById('callsign').value.toUpperCase();
+            const topic = `pskr/filter/v2/+/WSPR/${callsign}/#`;
+            log(`=== Connecting to TX topic for ${callsign} ===`, 'log');
+            connect([topic]);
+        }
+
+        function connectRX() {
+            const callsign = document.getElementById('callsign').value.toUpperCase();
+            const topic = `pskr/filter/v2/+/WSPR/+/${callsign}/#`;
+            log(`=== Connecting to RX topic for ${callsign} ===`, 'log');
+            connect([topic]);
+        }
+
+        function connectAll() {
+            const topic = 'pskr/filter/v2/+/WSPR/#';
+            log(`=== Connecting to ALL WSPR ===`, 'log');
+            log(`⚠️ WARNING: This will receive A LOT of messages!`, 'error');
+            connect([topic]);
+        }
+
+        log('Ready! Click a button to connect to MQTT.', 'log');
+        log('', 'log');
+        log('Topics:', 'log');
+        log('  TX: pskr/filter/v2/+/WSPR/{callsign}/# (where you are transmitter)', 'log');
+        log('  RX: pskr/filter/v2/+/WSPR/+/{callsign}/# (where you are receiver)', 'log');
+        log('  ALL: pskr/filter/v2/+/WSPR/# (all WSPR spots)', 'log');
+    </script>
+</body>
+</html>
