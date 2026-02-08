@@ -16,12 +16,10 @@ export const metadata = {
 };
 
 // The registry looks for this EXACT name: useLayer
-export const useLayer = (map, enabled, opacity) => {
+export function useLayer({ enabled = false, opacity = 0.5, map = null }) {
   const layerRef = useRef(null);
 
   useEffect(() => {
-    // This log MUST appear if the connection is working
-    console.log(`Cloud Layer Status - Enabled: ${enabled}, Opacity: ${opacity}`);
 
     if (!map) return;
 
@@ -48,4 +46,4 @@ export const useLayer = (map, enabled, opacity) => {
       }
     }
   }, [map, enabled, opacity]);
-};
+}
