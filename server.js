@@ -666,6 +666,136 @@ const visitorStats = loadVisitorStats();
 const todayIPSet = new Set(visitorStats.uniqueIPsToday);
 const allTimeIPSet = new Set(visitorStats.allTimeUniqueIPs);
 
+// ============================================
+// GEO-IP COUNTRY RESOLUTION
+// ============================================
+// Resolves visitor IPs to country codes using ip-api.com batch endpoint.
+// Free tier: 15 batch requests/minute, 100 IPs per batch. No API key needed.
+// Results cached persistently in visitorStats.geoIPCache.
+
+// Initialize country tracking in visitorStats if not present
+if (!visitorStats.countryStats) visitorStats.countryStats = {};           // { US: 42, DE: 7, ... }
+if (!visitorStats.countryStatsToday) visitorStats.countryStatsToday = {}; // Reset daily
+if (!visitorStats.geoIPCache) visitorStats.geoIPCache = {};              // { "1.2.3.4": "US", ... }
+
+const geoIPCache = new Map(Object.entries(visitorStats.geoIPCache));      // ip -> countryCode
+const geoIPQueue = new Set();                                             // IPs pending lookup
+let geoIPLastBatch = 0;
+const GEOIP_BATCH_INTERVAL = 30 * 1000;  // Resolve every 30 seconds
+const GEOIP_BATCH_SIZE = 100;             // ip-api.com batch limit
+
+// Queue any existing IPs that haven't been resolved yet
+for (const ip of allTimeIPSet) {
+  if (!geoIPCache.has(ip) && ip !== 'unknown' && !ip.startsWith('127.') && !ip.startsWith('::')) {
+    geoIPQueue.add(ip);
+  }
+}
+if (geoIPQueue.size > 0) {
+  logInfo(`[GeoIP] Queued ${geoIPQueue.size} unresolved IPs from history for batch lookup`);
+}
+
+/**
+ * Queue an IP for GeoIP resolution
+ */
+function queueGeoIPLookup(ip) {
+  if (!ip || ip === 'unknown' || ip.startsWith('127.') || ip.startsWith('::1') || ip === '0.0.0.0') return;
+  if (geoIPCache.has(ip)) return;
+  geoIPQueue.add(ip);
+}
+
+/**
+ * Record a resolved country for an IP
+ */
+function recordCountry(ip, countryCode) {
+  if (!countryCode || countryCode === 'Unknown') return;
+  geoIPCache.set(ip, countryCode);
+  visitorStats.geoIPCache[ip] = countryCode;
+  
+  // All-time stats
+  visitorStats.countryStats[countryCode] = (visitorStats.countryStats[countryCode] || 0) + 1;
+  
+  // Today stats (only if IP is in today's set)
+  if (todayIPSet.has(ip)) {
+    visitorStats.countryStatsToday[countryCode] = (visitorStats.countryStatsToday[countryCode] || 0) + 1;
+  }
+}
+
+/**
+ * Batch resolve queued IPs via ip-api.com
+ * Uses the batch endpoint: POST http://ip-api.com/batch
+ * Free tier: 15 requests/minute, 100 IPs per request
+ */
+async function resolveGeoIPBatch() {
+  if (geoIPQueue.size === 0) return;
+  
+  const now = Date.now();
+  if (now - geoIPLastBatch < GEOIP_BATCH_INTERVAL) return;
+  geoIPLastBatch = now;
+  
+  // Take up to GEOIP_BATCH_SIZE IPs from queue
+  const batch = [];
+  for (const ip of geoIPQueue) {
+    batch.push(ip);
+    if (batch.length >= GEOIP_BATCH_SIZE) break;
+  }
+  
+  // Remove from queue before fetching (will re-queue on failure)
+  batch.forEach(ip => geoIPQueue.delete(ip));
+  
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    
+    const response = await fetch('http://ip-api.com/batch?fields=query,countryCode,status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(batch.map(ip => ({ query: ip, fields: 'query,countryCode,status' }))),
+      signal: controller.signal
+    });
+    clearTimeout(timeout);
+    
+    if (response.status === 429) {
+      // Rate limited — re-queue and back off
+      batch.forEach(ip => geoIPQueue.add(ip));
+      logWarn('[GeoIP] Rate limited by ip-api.com, will retry later');
+      geoIPLastBatch = now + 60000; // Extra 60s backoff
+      return;
+    }
+    
+    if (!response.ok) {
+      batch.forEach(ip => geoIPQueue.add(ip));
+      logWarn(`[GeoIP] Batch lookup failed: HTTP ${response.status}`);
+      return;
+    }
+    
+    const results = await response.json();
+    let resolved = 0;
+    
+    for (const entry of results) {
+      if (entry.status === 'success' && entry.countryCode) {
+        recordCountry(entry.query, entry.countryCode);
+        resolved++;
+      }
+      // Don't re-queue failures (private IPs, invalid IPs) — they'll never resolve
+    }
+    
+    if (resolved > 0) {
+      logDebug(`[GeoIP] Resolved ${resolved}/${batch.length} IPs (${geoIPQueue.size} remaining)`);
+    }
+  } catch (err) {
+    // Re-queue on network errors
+    batch.forEach(ip => geoIPQueue.add(ip));
+    if (err.name !== 'AbortError') {
+      logErrorOnce('GeoIP', `Batch lookup error: ${err.message}`);
+    }
+  }
+}
+
+// Run GeoIP batch resolver every 30 seconds
+setInterval(resolveGeoIPBatch, GEOIP_BATCH_INTERVAL);
+// Initial batch (with 5s delay to let startup complete)
+setTimeout(resolveGeoIPBatch, 5000);
+
 // Save immediately on startup to confirm persistence is working
 if (STATS_FILE) {
   saveVisitorStats();
@@ -692,7 +822,8 @@ function rolloverVisitorStats() {
       visitorStats.history.push({
         date: visitorStats.today,
         uniqueVisitors: visitorStats.uniqueIPsToday.length,
-        totalRequests: visitorStats.totalRequestsToday
+        totalRequests: visitorStats.totalRequestsToday,
+        countries: { ...visitorStats.countryStatsToday }
       });
     }
     // Keep only last 90 days
@@ -708,6 +839,7 @@ function rolloverVisitorStats() {
     visitorStats.today = now;
     visitorStats.uniqueIPsToday = [];
     visitorStats.totalRequestsToday = 0;
+    visitorStats.countryStatsToday = {};
     todayIPSet.clear();
     
     // Save after rollover
@@ -913,7 +1045,11 @@ app.use((req, res, next) => {
       allTimeIPSet.add(ip);
       visitorStats.allTimeUniqueIPs.push(ip);
       visitorStats.allTimeVisitors++;
+      queueGeoIPLookup(ip);
       logInfo(`[Stats] New visitor (#${visitorStats.uniqueIPsToday.length} today, #${visitorStats.allTimeVisitors} all-time) from ${ip.replace(/\d+$/, 'x')}`);
+    } else if (isNewToday) {
+      // Existing all-time visitor but new today — queue GeoIP in case cache was lost
+      queueGeoIPLookup(ip);
     }
   }
   
@@ -6231,6 +6367,61 @@ function generateStatusDashboard() {
       </div>
     </div>
     
+    ${(() => {
+      // Country statistics section
+      const allTimeCountries = Object.entries(visitorStats.countryStats || {}).sort((a, b) => b[1] - a[1]);
+      const todayCountries = Object.entries(visitorStats.countryStatsToday || {}).sort((a, b) => b[1] - a[1]);
+      const totalResolved = allTimeCountries.reduce((s, [, v]) => s + v, 0);
+      
+      if (allTimeCountries.length === 0 && geoIPQueue.size === 0) return '';
+      
+      // Country code to flag emoji
+      const flag = (cc) => {
+        try { return String.fromCodePoint(...[...cc.toUpperCase()].map(c => 0x1F1E5 + c.charCodeAt(0) - 64)); } 
+        catch { return '🏳'; }
+      };
+      
+      const maxCount = allTimeCountries[0]?.[1] || 1;
+      
+      return `
+    <div class="api-section">
+      <div class="api-title">
+        <span>🌍 Visitor Countries</span>
+        <span style="color: #888; font-size: 0.75rem">${geoIPCache.size} resolved, ${geoIPQueue.size} pending</span>
+      </div>
+      
+      ${todayCountries.length > 0 ? `
+      <div style="margin-bottom: 16px">
+        <div style="color: #888; font-size: 0.75rem; margin-bottom: 6px">Today</div>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px">
+          ${todayCountries.map(([cc, count]) => `
+            <span style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; padding: 4px 8px; font-size: 0.8rem">
+              ${flag(cc)} ${cc} <span style="color: #00ff88; font-weight: 600">${count}</span>
+            </span>
+          `).join('')}
+        </div>
+      </div>` : ''}
+      
+      <div style="color: #888; font-size: 0.75rem; margin-bottom: 6px">All-Time (${allTimeCountries.length} countries, ${totalResolved} visitors resolved)</div>
+      <div style="max-height: 300px; overflow-y: auto">
+        ${allTimeCountries.slice(0, 40).map(([cc, count]) => {
+          const pct = Math.round(count / totalResolved * 100);
+          const barWidth = Math.max(2, (count / maxCount) * 100);
+          return `
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 3px; font-size: 0.8rem">
+            <span style="width: 28px; text-align: center">${flag(cc)}</span>
+            <span style="width: 28px; color: #888; font-family: monospace">${cc}</span>
+            <div style="flex: 1; background: rgba(255,255,255,0.05); border-radius: 2px; height: 16px; overflow: hidden">
+              <div style="width: ${barWidth}%; height: 100%; background: linear-gradient(90deg, rgba(0,100,255,0.6), rgba(0,200,100,0.6)); border-radius: 2px"></div>
+            </div>
+            <span style="width: 60px; text-align: right; font-family: monospace; color: #ccc">${count}</span>
+            <span style="width: 40px; text-align: right; font-size: 0.7rem; color: #888">${pct}%</span>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+    })()}
+    
     <div class="api-section">
       <div class="api-title">
         <span>📊 API Traffic Monitor</span>
@@ -6348,13 +6539,26 @@ app.get('/api/health', (req, res) => {
         today: {
           date: visitorStats.today,
           uniqueVisitors: visitorStats.uniqueIPsToday.length,
-          totalRequests: visitorStats.totalRequestsToday
+          totalRequests: visitorStats.totalRequestsToday,
+          countries: Object.entries(visitorStats.countryStatsToday || {})
+            .sort((a, b) => b[1] - a[1])
+            .reduce((o, [k, v]) => { o[k] = v; return o; }, {})
         },
         allTime: {
           since: visitorStats.serverFirstStarted,
           uniqueVisitors: visitorStats.allTimeVisitors,
           totalRequests: visitorStats.allTimeRequests,
-          deployments: visitorStats.deploymentCount
+          deployments: visitorStats.deploymentCount,
+          countries: Object.entries(visitorStats.countryStats || {})
+            .sort((a, b) => b[1] - a[1])
+            .reduce((o, [k, v]) => { o[k] = v; return o; }, {})
+        },
+        geoIP: {
+          resolved: geoIPCache.size,
+          pending: geoIPQueue.size,
+          coverage: visitorStats.allTimeVisitors > 0 
+            ? `${Math.round(geoIPCache.size / visitorStats.allTimeVisitors * 100)}%` 
+            : '0%'
         },
         dailyAverage: avg,
         history: visitorStats.history.slice(-30) // Last 30 days
