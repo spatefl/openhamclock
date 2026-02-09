@@ -259,6 +259,7 @@ export default function ModernLayout(props) {
               loading={propagation.loading}
               bandConditions={bandConditions}
               units={config.units}
+              propConfig={config.propagation}
             />
           )}
         </div>

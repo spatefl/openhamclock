@@ -31,6 +31,8 @@ export const SettingsPanel = ({ isOpen, onClose, config, onSave, onResetLayout, 
   const [customDxCluster, setCustomDxCluster] = useState(config?.customDxCluster || { enabled: false, host: '', port: 7300 });
   const [lowMemoryMode, setLowMemoryMode] = useState(config?.lowMemoryMode || false);
   const [units, setUnits] = useState(config?.units || 'imperial');
+  const [propMode, setPropMode] = useState(config?.propagation?.mode || 'SSB');
+  const [propPower, setPropPower] = useState(config?.propagation?.power || 100);
   const [satelliteSearch, setSatelliteSearch] = useState('');
   const { t, i18n } = useTranslation();
 
@@ -65,6 +67,8 @@ export const SettingsPanel = ({ isOpen, onClose, config, onSave, onResetLayout, 
       setCustomDxCluster(config.customDxCluster || { enabled: false, host: '', port: 7300 });
       setLowMemoryMode(config.lowMemoryMode || false);
       setUnits(config.units || 'imperial');
+      setPropMode(config.propagation?.mode || 'SSB');
+      setPropPower(config.propagation?.power || 100);
       if (config.location?.lat && config.location?.lon) {
         setGridSquare(calculateGridSquare(config.location.lat, config.location.lon));
       }
@@ -192,7 +196,8 @@ export const SettingsPanel = ({ isOpen, onClose, config, onSave, onResetLayout, 
       dxClusterSource,
       customDxCluster,
       lowMemoryMode,
-      units
+      units,
+      propagation: { mode: propMode, power: parseFloat(propPower) || 100 }
     });
     onClose();
   };
@@ -737,6 +742,126 @@ export const SettingsPanel = ({ isOpen, onClose, config, onSave, onResetLayout, 
                 {units === 'imperial'
                   ? 'Distances shown in miles throughout the application.'
                   : 'Distances shown in kilometers throughout the application.'}
+              </div>
+            </div>
+
+            {/* Propagation Settings */}
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                ⌇ Propagation Mode & Power
+              </label>
+              
+              {/* Mode */}
+              <div style={{ marginBottom: '8px' }}>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Operating Mode</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '4px' }}>
+                  {[
+                    { id: 'SSB', label: 'SSB', desc: 'Voice' },
+                    { id: 'CW', label: 'CW', desc: 'Morse' },
+                    { id: 'FT8', label: 'FT8', desc: 'Weak sig' },
+                    { id: 'FT4', label: 'FT4', desc: 'Weak sig' },
+                    { id: 'WSPR', label: 'WSPR', desc: 'Beacon' },
+                    { id: 'JS8', label: 'JS8', desc: 'Chat' },
+                    { id: 'RTTY', label: 'RTTY', desc: 'Teletype' },
+                    { id: 'PSK31', label: 'PSK31', desc: 'PSK' }
+                  ].map(m => (
+                    <button
+                      key={m.id}
+                      onClick={() => setPropMode(m.id)}
+                      style={{
+                        padding: '6px 4px',
+                        background: propMode === m.id ? 'var(--accent-amber)' : 'var(--bg-tertiary)',
+                        border: `1px solid ${propMode === m.id ? 'var(--accent-amber)' : 'var(--border-color)'}`,
+                        borderRadius: '4px',
+                        color: propMode === m.id ? '#000' : 'var(--text-secondary)',
+                        fontSize: '11px',
+                        cursor: 'pointer',
+                        fontWeight: propMode === m.id ? '700' : '400',
+                        fontFamily: 'JetBrains Mono, monospace',
+                        lineHeight: 1.2,
+                        textAlign: 'center'
+                      }}
+                      title={m.desc}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              {/* Power */}
+              <div style={{ marginBottom: '6px' }}>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>TX Power</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr) 1.2fr', gap: '4px', alignItems: 'center' }}>
+                  {[
+                    { w: 5, label: '5W', tip: 'QRP' },
+                    { w: 25, label: '25W', tip: 'Low' },
+                    { w: 100, label: '100W', tip: 'Std' },
+                    { w: 1500, label: '1.5kW', tip: 'Max' }
+                  ].map(p => (
+                    <button
+                      key={p.w}
+                      onClick={() => setPropPower(p.w)}
+                      style={{
+                        padding: '6px 4px',
+                        background: propPower === p.w ? 'var(--accent-amber)' : 'var(--bg-tertiary)',
+                        border: `1px solid ${propPower === p.w ? 'var(--accent-amber)' : 'var(--border-color)'}`,
+                        borderRadius: '4px',
+                        color: propPower === p.w ? '#000' : 'var(--text-secondary)',
+                        fontSize: '11px',
+                        cursor: 'pointer',
+                        fontWeight: propPower === p.w ? '700' : '400',
+                        fontFamily: 'JetBrains Mono, monospace'
+                      }}
+                      title={p.tip}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                    <input
+                      type="number"
+                      value={propPower}
+                      onChange={(e) => {
+                        const v = parseFloat(e.target.value);
+                        if (v > 0 && v <= 2000) setPropPower(v);
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '5px 4px',
+                        background: 'var(--bg-tertiary)',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '4px',
+                        color: 'var(--text-primary)',
+                        fontSize: '11px',
+                        fontFamily: 'JetBrains Mono, monospace',
+                        textAlign: 'center',
+                        boxSizing: 'border-box'
+                      }}
+                      min="0.1"
+                      max="2000"
+                      step="1"
+                    />
+                    <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>W</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
+                {(() => {
+                  const modeAdv = { SSB: 0, CW: 10, RTTY: 8, PSK31: 10, FT8: 34, FT4: 30, WSPR: 41, JS8: 37 };
+                  const adv = modeAdv[propMode] || 0;
+                  const pwrDb = 10 * Math.log10((propPower || 100) / 100);
+                  const margin = adv + pwrDb;
+                  return `Signal margin: ${margin >= 0 ? '+' : ''}${margin.toFixed(1)} dB vs SSB@100W — ${
+                    margin >= 30 ? 'extreme weak-signal advantage' :
+                    margin >= 15 ? 'strong advantage — marginal bands may open' :
+                    margin >= 5 ? 'moderate advantage' :
+                    margin >= -5 ? 'baseline conditions' :
+                    margin >= -15 ? 'reduced margin — some bands may close' :
+                    'significant disadvantage — only strong openings'
+                  }`;
+                })()}
               </div>
             </div>
 

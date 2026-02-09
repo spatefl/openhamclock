@@ -344,19 +344,19 @@ export const DockableApp = ({
         break;
 
       case 'propagation':
-        content = <PropagationPanel propagation={propagation.data} loading={propagation.loading} bandConditions={bandConditions} units={config.units} />;
+        content = <PropagationPanel propagation={propagation.data} loading={propagation.loading} bandConditions={bandConditions} units={config.units} propConfig={config.propagation} />;
         break;
 
       case 'propagation-chart':
-        content = <PropagationPanel propagation={propagation.data} loading={propagation.loading} bandConditions={bandConditions} units={config.units} forcedMode="chart" />;
+        content = <PropagationPanel propagation={propagation.data} loading={propagation.loading} bandConditions={bandConditions} units={config.units} propConfig={config.propagation} forcedMode="chart" />;
         break;
 
       case 'propagation-bars':
-        content = <PropagationPanel propagation={propagation.data} loading={propagation.loading} bandConditions={bandConditions} units={config.units} forcedMode="bars" />;
+        content = <PropagationPanel propagation={propagation.data} loading={propagation.loading} bandConditions={bandConditions} units={config.units} propConfig={config.propagation} forcedMode="bars" />;
         break;
 
       case 'band-conditions':
-        content = <PropagationPanel propagation={propagation.data} loading={propagation.loading} bandConditions={bandConditions} units={config.units} forcedMode="bands" />;
+        content = <PropagationPanel propagation={propagation.data} loading={propagation.loading} bandConditions={bandConditions} units={config.units} propConfig={config.propagation} forcedMode="bands" />;
         break;
 
       case 'band-health':

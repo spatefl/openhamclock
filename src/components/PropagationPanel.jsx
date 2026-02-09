@@ -5,7 +5,7 @@
 import React, { useState } from 'react';
 import { formatDistance } from '../utils/geo.js';
 
-export const PropagationPanel = ({ propagation, loading, bandConditions, forcedMode, units = 'imperial' }) => {
+export const PropagationPanel = ({ propagation, loading, bandConditions, forcedMode, units = 'imperial', propConfig = {} }) => {
   // Load view mode preference from localStorage
   const [internalViewMode, setViewMode] = useState(() => {
     try {
@@ -131,6 +131,29 @@ export const PropagationPanel = ({ propagation, loading, bandConditions, forcedM
         )}
       </div>
       
+      {/* Mode & Power indicator */}
+      {(propConfig.mode || propConfig.power) && viewMode !== 'bands' && (
+        <div style={{ 
+          display: 'flex', justifyContent: 'center', gap: '8px', 
+          padding: '2px 0 4px', fontSize: '10px', color: 'var(--text-muted)',
+          borderBottom: '1px solid var(--border-color)', marginBottom: '4px'
+        }}>
+          <span style={{ color: 'var(--accent-amber)' }}>
+            {propConfig.mode || 'SSB'}
+          </span>
+          <span>•</span>
+          <span>{(propConfig.power || 100) >= 1000 ? `${((propConfig.power || 100)/1000).toFixed(1)}kW` : `${propConfig.power || 100}W`}</span>
+          {propagation?.signalMargin !== undefined && propagation.signalMargin !== 0 && (
+            <>
+              <span>•</span>
+              <span style={{ color: propagation.signalMargin > 0 ? '#00ff88' : '#ff6644' }}>
+                {propagation.signalMargin > 0 ? '+' : ''}{propagation.signalMargin}dB
+              </span>
+            </>
+          )}
+        </div>
+      )}
+
       {viewMode === 'bands' ? (
         /* Band Conditions Grid View - N0NBH Data */
         <div style={{ padding: '4px' }}>

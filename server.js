@@ -4694,10 +4694,15 @@ function estimateExpectedFoF2(ssn, lat, hour) {
 // ============================================
 
 app.get('/api/propagation', async (req, res) => {
-  const { deLat, deLon, dxLat, dxLon } = req.query;
+  const { deLat, deLon, dxLat, dxLon, mode, power } = req.query;
+  
+  // Calculate signal margin from mode + power
+  const txMode = (mode || 'SSB').toUpperCase();
+  const txPower = parseFloat(power) || 100;
+  const signalMarginDb = calculateSignalMargin(txMode, txPower);
   
   const useHybrid = ITURHFPROP_URL !== null;
-  logDebug(`[Propagation] ${useHybrid ? 'Hybrid' : 'Standalone'} calculation for DE:`, deLat, deLon, 'to DX:', dxLat, dxLon);
+  logDebug(`[Propagation] ${useHybrid ? 'Hybrid' : 'Standalone'} calculation for DE:`, deLat, deLon, 'to DX:', dxLat, dxLon, `[${txMode} @ ${txPower}W, margin: ${signalMarginDb.toFixed(1)}dB]`);
   
   try {
     // Get current space weather data
@@ -4800,7 +4805,7 @@ app.get('/api/propagation', async (req, res) => {
         }
         // Fallback for bands not in hybrid result
         const reliability = calculateEnhancedReliability(
-          bandFreqs[idx], distance, midLat, midLon, currentHour, sfi, ssn, kIndex, de, dx, effectiveIonoData, currentHour
+          bandFreqs[idx], distance, midLat, midLon, currentHour, sfi, ssn, kIndex, de, dx, effectiveIonoData, currentHour, signalMarginDb
         );
         return {
           band,
@@ -4819,7 +4824,7 @@ app.get('/api/propagation', async (req, res) => {
         
         // Calculate built-in reliability for current hour
         const builtInCurrentReliability = calculateEnhancedReliability(
-          freq, distance, midLat, midLon, currentHour, sfi, ssn, kIndex, de, dx, effectiveIonoData, currentHour
+          freq, distance, midLat, midLon, currentHour, sfi, ssn, kIndex, de, dx, effectiveIonoData, currentHour, signalMarginDb
         );
         
         // Get hybrid reliability for this band (the accurate one)
@@ -4840,7 +4845,7 @@ app.get('/api/propagation', async (req, res) => {
         
         for (let hour = 0; hour < 24; hour++) {
           const baseReliability = calculateEnhancedReliability(
-            freq, distance, midLat, midLon, hour, sfi, ssn, kIndex, de, dx, effectiveIonoData, currentHour
+            freq, distance, midLat, midLon, hour, sfi, ssn, kIndex, de, dx, effectiveIonoData, currentHour, signalMarginDb
           );
           // Apply correction ratio and clamp to valid range
           const correctedReliability = Math.min(99, Math.max(0, Math.round(baseReliability * correctionRatio)));
@@ -4861,7 +4866,7 @@ app.get('/api/propagation', async (req, res) => {
         predictions[band] = [];
         for (let hour = 0; hour < 24; hour++) {
           const reliability = calculateEnhancedReliability(
-            freq, distance, midLat, midLon, hour, sfi, ssn, kIndex, de, dx, effectiveIonoData, currentHour
+            freq, distance, midLat, midLon, hour, sfi, ssn, kIndex, de, dx, effectiveIonoData, currentHour, signalMarginDb
           );
           predictions[band].push({
             hour,
@@ -4930,6 +4935,9 @@ app.get('/api/propagation', async (req, res) => {
       currentHour,
       currentBands,
       hourlyPredictions: predictions,
+      mode: txMode,
+      power: txPower,
+      signalMargin: Math.round(signalMarginDb * 10) / 10,
       hybrid: {
         enabled: useHybrid,
         iturhfpropAvailable: hybridResult !== null,
@@ -4959,8 +4967,11 @@ app.get('/api/propagation/heatmap', async (req, res) => {
   const deLon = parseFloat(req.query.deLon) || 0;
   const freq = parseFloat(req.query.freq) || 14; // MHz, default 20m
   const gridSize = Math.max(5, Math.min(20, parseInt(req.query.grid) || 10)); // 5-20° grid
+  const txMode = (req.query.mode || 'SSB').toUpperCase();
+  const txPower = parseFloat(req.query.power) || 100;
+  const signalMarginDb = calculateSignalMargin(txMode, txPower);
   
-  const cacheKey = `${deLat.toFixed(0)}:${deLon.toFixed(0)}:${freq}:${gridSize}`;
+  const cacheKey = `${deLat.toFixed(0)}:${deLon.toFixed(0)}:${freq}:${gridSize}:${txMode}:${txPower}`;
   const now = Date.now();
   
   if (PROP_HEATMAP_CACHE[cacheKey] && (now - PROP_HEATMAP_CACHE[cacheKey].ts) < PROP_HEATMAP_TTL) {
@@ -5011,7 +5022,7 @@ app.get('/api/propagation/heatmap', async (req, res) => {
         
         const reliability = calculateEnhancedReliability(
           freq, distance, midLat, midLon, currentHour,
-          sfi, ssn, kIndex, de, dx, null, currentHour
+          sfi, ssn, kIndex, de, dx, null, currentHour, signalMarginDb
         );
         
         cells.push({
@@ -5024,6 +5035,7 @@ app.get('/api/propagation/heatmap', async (req, res) => {
     
     const result = {
       deLat, deLon, freq, gridSize,
+      mode: txMode, power: txPower, signalMargin: Math.round(signalMarginDb * 10) / 10,
       solarData: { sfi, ssn, kIndex },
       hour: currentHour,
       cells,
@@ -5032,7 +5044,7 @@ app.get('/api/propagation/heatmap', async (req, res) => {
     
     PROP_HEATMAP_CACHE[cacheKey] = { data: result, ts: now };
     
-    logDebug(`[PropHeatmap] Computed ${cells.length} cells for ${freq} MHz from ${deLat.toFixed(1)},${deLon.toFixed(1)}`);
+    logDebug(`[PropHeatmap] Computed ${cells.length} cells for ${freq} MHz [${txMode} @ ${txPower}W] from ${deLat.toFixed(1)},${deLon.toFixed(1)}`);
     res.json(result);
     
   } catch (error) {
@@ -5121,8 +5133,38 @@ function calculateLUF(distance, midLat, hour, sfi, kIndex) {
   return baseLuf * dayFactor * sfiFactor * distFactor * latFactor * kFactor;
 }
 
+// Mode decode advantage in dB relative to SSB (higher = can decode weaker signals)
+// Based on typical required SNR thresholds for each mode
+const MODE_ADVANTAGE_DB = {
+  'SSB':   0,    // Baseline: requires ~13dB SNR
+  'AM':   -6,    // Worse than SSB: requires ~19dB SNR
+  'CW':   10,    // Narrow bandwidth: requires ~3dB SNR
+  'RTTY':  8,    // Digital FSK: requires ~5dB SNR
+  'PSK31':10,    // Phase-shift keying: requires ~3dB SNR
+  'FT8':  34,    // Deep decode: requires ~-21dB SNR
+  'FT4':  30,    // Slightly less sensitive: requires ~-17dB SNR
+  'WSPR': 41,    // Ultra-weak signal: requires ~-28dB SNR
+  'JS8':  37,    // Conversational weak-signal: requires ~-24dB SNR
+  'OLIVIA': 20,  // Error-correcting: requires ~-7dB SNR
+  'JT65': 38     // Deep decode: requires ~-25dB SNR
+};
+
+/**
+ * Calculate signal margin in dB from mode and power
+ * Used to adjust propagation reliability predictions
+ * @param {string} mode - Operating mode (SSB, CW, FT8, etc.)
+ * @param {number} powerWatts - TX power in watts
+ * @returns {number} Signal margin in dB relative to SSB at 100W
+ */
+function calculateSignalMargin(mode, powerWatts) {
+  const modeAdv = MODE_ADVANTAGE_DB[mode] || 0;
+  const power = Math.max(0.01, powerWatts || 100);
+  const powerOffset = 10 * Math.log10(power / 100); // dB relative to 100W
+  return modeAdv + powerOffset;
+}
+
 // Enhanced reliability calculation using real ionosonde data
-function calculateEnhancedReliability(freq, distance, midLat, midLon, hour, sfi, ssn, kIndex, de, dx, ionoData, currentHour) {
+function calculateEnhancedReliability(freq, distance, midLat, midLon, hour, sfi, ssn, kIndex, de, dx, ionoData, currentHour, signalMarginDb = 0) {
   // Calculate MUF and LUF for this hour
   // For non-current hours, we need to estimate how foF2 changes
   let hourIonoData = ionoData;
@@ -5144,32 +5186,40 @@ function calculateEnhancedReliability(freq, distance, midLat, midLon, hour, sfi,
   const muf = calculateMUF(distance, midLat, midLon, hour, sfi, ssn, hourIonoData);
   const luf = calculateLUF(distance, midLat, hour, sfi, kIndex);
   
-  // Calculate reliability based on frequency position relative to MUF/LUF
+  // Apply signal margin from mode + power
+  // Positive margin (e.g. FT8 or high power) effectively widens the usable window:
+  //   - Extends effective MUF (weak-signal modes can decode signals near/above MUF)
+  //   - Reduces effective LUF (more power overcomes D-layer absorption)
+  // Each dB of margin extends MUF by ~1.2% and reduces LUF by ~0.8%
+  const effectiveMuf = muf * (1 + signalMarginDb * 0.012);
+  const effectiveLuf = luf * Math.max(0.1, 1 - signalMarginDb * 0.008);
+  
+  // Calculate reliability based on frequency position relative to effective MUF/LUF
   let reliability = 0;
   
-  if (freq > muf * 1.1) {
+  if (freq > effectiveMuf * 1.1) {
     // Well above MUF - very poor
-    reliability = Math.max(0, 30 - (freq - muf) * 5);
-  } else if (freq > muf) {
+    reliability = Math.max(0, 30 - (freq - effectiveMuf) * 5);
+  } else if (freq > effectiveMuf) {
     // Slightly above MUF - marginal (sometimes works due to scatter)
-    reliability = 30 + (muf * 1.1 - freq) / (muf * 0.1) * 20;
-  } else if (freq < luf * 0.8) {
+    reliability = 30 + (effectiveMuf * 1.1 - freq) / (effectiveMuf * 0.1) * 20;
+  } else if (freq < effectiveLuf * 0.8) {
     // Well below LUF - absorbed
-    reliability = Math.max(0, 20 - (luf - freq) * 10);
-  } else if (freq < luf) {
+    reliability = Math.max(0, 20 - (effectiveLuf - freq) * 10);
+  } else if (freq < effectiveLuf) {
     // Near LUF - marginal
-    reliability = 20 + (freq - luf * 0.8) / (luf * 0.2) * 30;
+    reliability = 20 + (freq - effectiveLuf * 0.8) / (effectiveLuf * 0.2) * 30;
   } else {
     // In usable range - calculate optimum
     // Optimum Working Frequency (OWF) is typically 80-85% of MUF
-    const owf = muf * 0.85;
-    const range = muf - luf;
+    const owf = effectiveMuf * 0.85;
+    const range = effectiveMuf - effectiveLuf;
     
     if (range <= 0) {
       reliability = 30; // Very narrow window
     } else {
       // Higher reliability near OWF, tapering toward MUF and LUF
-      const position = (freq - luf) / range; // 0 at LUF, 1 at MUF
+      const position = (freq - effectiveLuf) / range; // 0 at LUF, 1 at MUF
       const optimalPosition = 0.75; // 75% up from LUF = OWF
       
       if (position < optimalPosition) {

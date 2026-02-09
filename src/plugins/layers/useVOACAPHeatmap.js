@@ -183,7 +183,15 @@ export function useLayer({ map, enabled, opacity, callsign, locator }) {
       
       setLoading(true);
       try {
-        const url = `/api/propagation/heatmap?deLat=${deLocation.lat.toFixed(1)}&deLon=${deLocation.lon.toFixed(1)}&freq=${band.freq}&grid=${gridSize}`;
+        // Read propagation mode/power from config
+        let propMode = 'SSB', propPower = 100;
+        try {
+          const cfg = JSON.parse(localStorage.getItem('openhamclock_config') || '{}');
+          if (cfg.propagation?.mode) propMode = cfg.propagation.mode;
+          if (cfg.propagation?.power) propPower = cfg.propagation.power;
+        } catch (e) {}
+        
+        const url = `/api/propagation/heatmap?deLat=${deLocation.lat.toFixed(1)}&deLon=${deLocation.lon.toFixed(1)}&freq=${band.freq}&grid=${gridSize}&mode=${propMode}&power=${propPower}`;
         const res = await fetch(url);
         if (res.ok) {
           const json = await res.json();
@@ -280,7 +288,7 @@ export function useLayer({ map, enabled, opacity, callsign, locator }) {
                 <span style="color: #888; font-size: 9px;">Good</span>
               </div>
               <div id="voacap-status" style="color: #666; font-size: 9px; margin-top: 6px; text-align: center;">
-                ${loading ? 'Loading...' : data ? `SFI: ${data.solarData?.sfi} K: ${data.solarData?.kIndex} | ${data.cells?.length || 0} cells` : 'Ready'}
+                ${loading ? 'Loading...' : data ? `${data.mode || 'SSB'} ${data.power || 100}W | SFI: ${data.solarData?.sfi} K: ${data.solarData?.kIndex}` : 'Ready'}
               </div>
             </div>
           </div>
@@ -342,7 +350,7 @@ export function useLayer({ map, enabled, opacity, callsign, locator }) {
       if (loading) {
         statusEl.textContent = 'Loading...';
       } else if (data) {
-        statusEl.textContent = `SFI: ${data.solarData?.sfi} K: ${data.solarData?.kIndex} | ${data.cells?.length || 0} cells`;
+        statusEl.textContent = `${data.mode || 'SSB'} ${data.power || 100}W | SFI: ${data.solarData?.sfi} K: ${data.solarData?.kIndex}`;
       }
     }
   }, [loading, data, enabled]);
@@ -385,8 +393,8 @@ export function useLayer({ map, enabled, opacity, callsign, locator }) {
         if (offset === 0) {
           rect.bindPopup(`
             <div style="font-family: 'JetBrains Mono', monospace; font-size: 12px;">
-              <b style="color: ${color}">${band?.label || ''} Propagation</b><br>
-              Reliability: <b>${cell.r}%</b><br>
+              <b style="color: ${color}">${band?.label || ''} ${data.mode || 'SSB'} Propagation</b><br>
+              Reliability: <b>${cell.r}%</b> @ ${data.power || 100}W<br>
               Grid: ${cell.lat.toFixed(0)}°, ${cell.lon.toFixed(0)}°<br>
               Distance: ${formatDistanceApprox(haversineApprox(data.deLat, data.deLon, cell.lat, cell.lon))}
             </div>

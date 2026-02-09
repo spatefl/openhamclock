@@ -135,7 +135,7 @@ const App = () => {
   const dxClusterData = useDXClusterData(dxFilters, config);
   const dxpeditions = useDXpeditions();
   const contests = useContests();
-  const propagation = usePropagation(config.location, dxLocation);
+  const propagation = usePropagation(config.location, dxLocation, config.propagation);
   const mySpots = useMySpots(config.callsign);
   const satellites = useSatellites(config.location);
   const localWeather = useWeather(config.location, tempUnit);
