@@ -1337,6 +1337,10 @@ app.get('/api/noaa/sunspots', async (req, res) => {
 });
 
 // Solar Indices with History and Kp Forecast
+// Current SFI/SSN: N0NBH (hamqsl.com) + SWPC summary (updated hourly)
+// History SFI: SWPC f107_cm_flux.json (daily archive — may lag weeks behind)
+// History SSN: SWPC observed-solar-cycle-indices.json (monthly archive)
+// Kp: SWPC planetary k-index (3hr intervals, current) + forecast
 app.get('/api/solar-indices', async (req, res) => {
   try {
     // Check cache first
@@ -1344,11 +1348,12 @@ app.get('/api/solar-indices', async (req, res) => {
       return res.json(noaaCache.solarIndices.data);
     }
     
-    const [fluxRes, kIndexRes, kForecastRes, sunspotRes] = await Promise.allSettled([
+    const [fluxRes, kIndexRes, kForecastRes, sunspotRes, sfiSummaryRes] = await Promise.allSettled([
       fetch('https://services.swpc.noaa.gov/json/f107_cm_flux.json'),
       fetch('https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json'),
       fetch('https://services.swpc.noaa.gov/products/noaa-planetary-k-index-forecast.json'),
-      fetch('https://services.swpc.noaa.gov/json/solar-cycle/observed-solar-cycle-indices.json')
+      fetch('https://services.swpc.noaa.gov/json/solar-cycle/observed-solar-cycle-indices.json'),
+      fetch('https://services.swpc.noaa.gov/products/summary/10cm-flux.json')
     ]);
 
     const result = {
@@ -1358,25 +1363,42 @@ app.get('/api/solar-indices', async (req, res) => {
       timestamp: new Date().toISOString()
     };
 
-    // Process SFI data (last 30 days)
+    // --- SFI current: prefer SWPC summary (updates every few hours) ---
+    if (sfiSummaryRes.status === 'fulfilled' && sfiSummaryRes.value.ok) {
+      try {
+        const summary = await sfiSummaryRes.value.json();
+        // Response: { "Flux": "158", "TimeStamp": "2026 Feb 10 2100 UTC", ... }
+        const flux = parseInt(summary?.Flux);
+        if (flux > 0) result.sfi.current = flux;
+      } catch {}
+    }
+
+    // --- SFI current fallback: N0NBH (hamqsl.com, same as GridTracker/Log4OM) ---
+    if (!result.sfi.current && n0nbhCache.data?.solarData?.solarFlux) {
+      const flux = parseInt(n0nbhCache.data.solarData.solarFlux);
+      if (flux > 0) result.sfi.current = flux;
+    }
+
+    // --- SFI history (daily archive — may be weeks behind, that's fine for trend) ---
     if (fluxRes.status === 'fulfilled' && fluxRes.value.ok) {
       const data = await fluxRes.value.json();
       if (data?.length) {
-        // Get last 30 entries
         const recent = data.slice(-30);
         result.sfi.history = recent.map(d => ({
           date: d.time_tag || d.date,
           value: Math.round(d.flux || d.value || 0)
         }));
-        result.sfi.current = result.sfi.history[result.sfi.history.length - 1]?.value || null;
+        // Only use archive for current if we still don't have one
+        if (!result.sfi.current) {
+          result.sfi.current = result.sfi.history[result.sfi.history.length - 1]?.value || null;
+        }
       }
     }
 
-    // Process Kp history (last 3 days, data comes in 3-hour intervals)
+    // --- Kp history (last 3 days, 3-hour intervals) ---
     if (kIndexRes.status === 'fulfilled' && kIndexRes.value.ok) {
       const data = await kIndexRes.value.json();
       if (data?.length > 1) {
-        // Skip header row, get last 24 entries (3 days)
         const recent = data.slice(1).slice(-24);
         result.kp.history = recent.map(d => ({
           time: d[0],
@@ -1386,11 +1408,10 @@ app.get('/api/solar-indices', async (req, res) => {
       }
     }
 
-    // Process Kp forecast
+    // --- Kp forecast ---
     if (kForecastRes.status === 'fulfilled' && kForecastRes.value.ok) {
       const data = await kForecastRes.value.json();
       if (data?.length > 1) {
-        // Skip header row
         result.kp.forecast = data.slice(1).map(d => ({
           time: d[0],
           value: parseFloat(d[1]) || 0
@@ -1398,17 +1419,25 @@ app.get('/api/solar-indices', async (req, res) => {
       }
     }
 
-    // Process Sunspot data (last 12 months)
+    // --- SSN current: prefer N0NBH (daily, matches hamqsl.com/GridTracker/Log4OM) ---
+    if (n0nbhCache.data?.solarData?.sunspots) {
+      const ssn = parseInt(n0nbhCache.data.solarData.sunspots);
+      if (ssn >= 0) result.ssn.current = ssn;
+    }
+
+    // --- SSN history (monthly archive) ---
     if (sunspotRes.status === 'fulfilled' && sunspotRes.value.ok) {
       const data = await sunspotRes.value.json();
       if (data?.length) {
-        // Get last 12 entries (monthly data)
         const recent = data.slice(-12);
         result.ssn.history = recent.map(d => ({
           date: `${d['time-tag'] || d.time_tag || ''}`,
           value: Math.round(d.ssn || 0)
         }));
-        result.ssn.current = result.ssn.history[result.ssn.history.length - 1]?.value || null;
+        // Only use monthly archive for current if we still don't have one
+        if (result.ssn.current == null) {
+          result.ssn.current = result.ssn.history[result.ssn.history.length - 1]?.value || null;
+        }
       }
     }
 
@@ -5085,20 +5114,35 @@ app.get('/api/propagation', async (req, res) => {
     let sfi = 150, ssn = 100, kIndex = 2, aIndex = 10;
     
     try {
-      const [fluxRes, kRes] = await Promise.allSettled([
-        fetch('https://services.swpc.noaa.gov/json/f107_cm_flux.json'),
+      // Prefer SWPC summary (updates every few hours) + N0NBH for SSN
+      const [summaryRes, kRes] = await Promise.allSettled([
+        fetch('https://services.swpc.noaa.gov/products/summary/10cm-flux.json'),
         fetch('https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json')
       ]);
       
-      if (fluxRes.status === 'fulfilled' && fluxRes.value.ok) {
-        const data = await fluxRes.value.json();
-        if (data?.length) sfi = Math.round(data[data.length - 1].flux || 150);
+      if (summaryRes.status === 'fulfilled' && summaryRes.value.ok) {
+        try {
+          const summary = await summaryRes.value.json();
+          const flux = parseInt(summary?.Flux);
+          if (flux > 0) sfi = flux;
+        } catch {}
+      }
+      // Fallback: N0NBH cache (daily, same as hamqsl.com)
+      if (sfi === 150 && n0nbhCache.data?.solarData?.solarFlux) {
+        const flux = parseInt(n0nbhCache.data.solarData.solarFlux);
+        if (flux > 0) sfi = flux;
+      }
+      // SSN: prefer N0NBH (daily), then estimate from SFI
+      if (n0nbhCache.data?.solarData?.sunspots) {
+        const s = parseInt(n0nbhCache.data.solarData.sunspots);
+        if (s >= 0) ssn = s;
+      } else {
+        ssn = Math.max(0, Math.round((sfi - 67) / 0.97));
       }
       if (kRes.status === 'fulfilled' && kRes.value.ok) {
         const data = await kRes.value.json();
         if (data?.length > 1) kIndex = parseInt(data[data.length - 1][1]) || 2;
       }
-      ssn = Math.max(0, Math.round((sfi - 67) / 0.97));
     } catch (e) {
       logDebug('[Propagation] Using default solar values');
     }
@@ -8280,6 +8324,16 @@ if (N1MM_ENABLED) {
   console.log('');
 
   startAutoUpdateScheduler();
+
+  // Pre-warm N0NBH cache so solar-indices has current SFI/SSN on first request
+  setTimeout(async () => {
+    try {
+      const response = await fetch('https://www.hamqsl.com/solarxml.php');
+      const xml = await response.text();
+      n0nbhCache = { data: parseN0NBHxml(xml), timestamp: Date.now() };
+      logInfo('[Startup] N0NBH solar data pre-warmed');
+    } catch (e) { logWarn('[Startup] N0NBH pre-warm failed:', e.message); }
+  }, 3000);
 });
 
 // Graceful shutdown
