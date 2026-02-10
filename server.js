@@ -3619,7 +3619,7 @@ app.get('/api/pskreporter/http/:callsign', async (req, res) => {
     
     const response = await fetch(url, {
       headers: { 
-        'User-Agent': 'OpenHamClock/15.1.5 (Amateur Radio Dashboard)',
+        'User-Agent': 'OpenHamClock/15.1.6 (Amateur Radio Dashboard)',
         'Accept': '*/*'
       },
       signal: controller.signal
@@ -4552,7 +4552,7 @@ app.get('/api/wspr/heatmap', async (req, res) => {
     
     const response = await fetch(url, {
       headers: { 
-        'User-Agent': 'OpenHamClock/15.1.5 (Amateur Radio Dashboard)',
+        'User-Agent': 'OpenHamClock/15.1.6 (Amateur Radio Dashboard)',
         'Accept': '*/*'
       },
       signal: controller.signal
@@ -7059,7 +7059,7 @@ const weatherCache = new Map();          // key: "weather:lat,lon" → { data, t
 const nwsPointsCache = new Map();        // key: "lat,lon" → { gridId, gridX, gridY, stationUrl } (never expires)
 const WEATHER_CACHE_TTL = 2 * 60 * 60 * 1000;  // 2 hours
 const WEATHER_STALE_TTL = 6 * 60 * 60 * 1000;  // Serve stale data up to 6 hours if upstream is down
-const NWS_USER_AGENT = 'OpenHamClock/15.1.5 (https://openhamclock.com, Amateur Radio Dashboard)';
+const NWS_USER_AGENT = 'OpenHamClock/15.1.6 (https://openhamclock.com, Amateur Radio Dashboard)';
 
 // Rough bounding box for US coverage (CONUS + Alaska + Hawaii + territories)
 function isUSCoordinates(lat, lon) {

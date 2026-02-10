@@ -449,10 +449,12 @@ Current weather conditions at your station location, displayed in the header bar
 
 **Data sources:**
 
-- **Open-Meteo** (default) — Free weather API, no API key required. Uses your configured latitude/longitude.
-- **OpenWeatherMap** (optional) — Set `OPENWEATHER_API_KEY` in `.env` if you prefer OpenWeatherMap data. Get a free API key at [openweathermap.org/api](https://openweathermap.org/api).
+- **NWS api.weather.gov** (US locations) — Free government API, no key required, unlimited requests. Used automatically for US coordinates.
+- **Open-Meteo** (international) — Free weather API, no API key required. Used for all non-US coordinates.
 
-**Refresh interval:** Every 15 minutes.
+No configuration needed — weather works automatically based on your station coordinates.
+
+**Refresh interval:** Every 2 hours (weather data is cached server-side).
 
 ---
 
@@ -635,6 +637,14 @@ Visitor stats persist across restarts via file-based storage. Configure the stor
 
 All configuration is done through the `.env` file. On first run, this file is auto-created from `.env.example`. You can also change most settings through the browser-based Settings panel.
 
+> **Can't find the `.env` file?** Files starting with a dot are hidden by default on Linux, Mac, and Raspberry Pi.
+> - **Terminal:** `ls -la` to see hidden files, or `nano .env` to edit directly
+> - **File manager (Pi/Linux):** Press `Ctrl+H` to toggle hidden files
+> - **Mac Finder:** Press `Cmd+Shift+.` to toggle hidden files
+> - **If the file doesn't exist yet:** Run `npm start` once and it will be auto-created, or copy it manually: `cp .env.example .env`
+>
+> The `.env` file is located in the root of your OpenHamClock directory (same folder as `server.js` and `package.json`).
+
 ### Station Settings
 
 | Variable | Default | Description |
@@ -676,7 +686,7 @@ All configuration is done through the `.env` file. On first run, this file is au
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `OPENWEATHER_API_KEY` | *(none)* | OpenWeatherMap API key. Optional — Open-Meteo is used by default and requires no key. Get a free key at [openweathermap.org/api](https://openweathermap.org/api). |
+| `OPENWEATHER_API_KEY` | *(none)* | OpenWeatherMap API key. Only needed for the **Cloud Layer** map overlay — weather data uses NWS (US) and Open-Meteo (international) automatically with no key. Get a free key at [openweathermap.org/api](https://openweathermap.org/api). Also set `VITE_OPENWEATHER_API_KEY` to the same value. |
 | `ITURHFPROP_URL` | Public service | URL for ITU-R P.533 propagation predictions. Defaults to the public OpenHamClock service. Override only if self-hosting the `iturhfprop-service/`. |
 | `DXSPIDER_PROXY_URL` | *(none)* | URL of your DX Spider proxy. A default proxy is provided, so you only need this if you're running your own. |
 
@@ -1102,6 +1112,9 @@ A: A spot will appear in the panel list but not on the map if its coordinates co
 
 **Q: How do I get the Classic layout to look like the original HamClock?**
 A: Set `LAYOUT=classic` in `.env` (or select it in Settings). The Classic layout uses a black background with large colored number displays, matching the style of the original HamClock by WB0OEW.
+
+**Q: I can't find the `.env` file — where is it?**
+A: The `.env` file is in the root OpenHamClock directory (same folder as `server.js`). Files starting with `.` are hidden by default — use `ls -la` in a terminal to see it, or `Ctrl+H` in a Linux file manager. If it doesn't exist yet, run `npm start` once (it's auto-created from `.env.example`) or copy it manually: `cp .env.example .env`. Most settings can also be changed through the browser Settings panel without editing `.env` at all.
 
 ---
 

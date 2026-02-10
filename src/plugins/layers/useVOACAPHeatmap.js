@@ -412,20 +412,9 @@ export function useLayer({ map, enabled, opacity, callsign, locator }) {
           fillColor: color,
           fillOpacity: opacity,
           weight: 0,
-          interactive: true,
+          interactive: false,
           bubblingMouseEvents: true
         });
-        
-        if (offset === 0) {
-          rect.bindPopup(`
-            <div style="font-family: 'JetBrains Mono', monospace; font-size: 12px;">
-              <b style="color: ${color}">${band?.label || ''} ${data.mode || 'SSB'} Propagation</b><br>
-              Reliability: <b>${cell.r}%</b> @ ${data.power || 100}W<br>
-              Grid: ${cell.lat.toFixed(0)}°, ${cell.lon.toFixed(0)}°<br>
-              Distance: ${formatDistanceApprox(haversineApprox(data.deLat, data.deLon, cell.lat, cell.lon))}
-            </div>
-          `);
-        }
         
         rect.addTo(map);
         newLayers.push(rect);
