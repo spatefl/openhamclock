@@ -249,11 +249,12 @@ const FlrigAdapter = {
         console.warn('[Flrig] rig.tune failed, trying fallback (PTT toggle):', err.message);
         // Fallback: Toggle PTT if TUNE command not supported/failed
         FlrigAdapter.setPTT(true, () => {
+          const delay = CONFIG.radio.tuneDelay || 3000;
           setTimeout(() => {
             FlrigAdapter.setPTT(false, () => {
               console.log('[Flrig] Fallback Tune (PTT) completed');
             });
-          }, 3000); // Transmit for 3s
+          }, delay); // Transmit for configured duration
         });
       } else {
         console.log('[Flrig] Tune command sent successfully');

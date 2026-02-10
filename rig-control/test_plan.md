@@ -111,12 +111,12 @@ The OpenHamClock web app cannot talk directly to your rig; it needs a small brid
 
 | Test Step | Action | Expected Frequency | Expected Mode |
 | :--- | :--- | :--- | :--- |
-| **5.1** | Click a **20m FT8** spot (e.g., 14.074) | 14.074.000 | **DATA-U** |
-| **5.2** | Click a **40m FT8** spot (e.g., 7.074) | 7.074.000 | **DATA-L** |
-| **5.3** | Click a **80m FT8** spot (e.g., 3.573) | 3.573.000 | **DATA-L** |
-| **5.4** | Click a **20m CW** spot (e.g., 14.010) | 14.010.000 | **CW-U** |
-| **5.5** | Click a **40m CW** spot (e.g., 7.010) | 7.010.000 | **CW-L** |
-| **5.6** | Click a **60m** spot (e.g., 5.357) | 5.357.000 | **DATA-U** |
+| **5.1** | Click a **20m FT8** spot (e.g., 14.074) | 14.074.000 | **USB** |
+| **5.2** | Click a **40m FT8** spot (e.g., 7.074) | 7.074.000 | **LSB** |
+| **5.3** | Click a **80m FT8** spot (e.g., 3.573) | 3.573.000 | **LSB** |
+| **5.4** | Click a **20m CW** spot (e.g., 14.010) | 14.010.000 | **USB** |
+| **5.5** | Click a **40m CW** spot (e.g., 7.010) | 7.010.000 | **LSB** |
+| **5.6** | Click a **60m** spot (e.g., 5.357) | 5.357.000 | **USB** |
 
 ### TC-06: Error Handling
 **Objective:** Confirm behavior when components fail.
@@ -125,6 +125,15 @@ The OpenHamClock web app cannot talk directly to your rig; it needs a small brid
 3. **Verify:** An error banner "Daemon not reachable" appears in the panel.
 4. Restart the daemon.
 5. **Verify:** The panel recovers to **GREEN** automatically.
+
+### TC-07: Configurable Tune Delay
+**Objective:** Verify that the ATU trigger duration can be customized.
+**Prerequisite:** Feature "Click-to-tune" enabled in Settings.
+
+| Test Step | Action | Expected Behavior |
+| :--- | :--- | :--- |
+| **7.1** | Default Config | Stop daemon. Ensure `tuneDelay` is `3000` (or missing) in `rig-config.json`. Start daemon. Click a spot. Verify "Tune" (or PTT) lasts ~3 seconds. |
+| **7.2** | Custom Config | Stop daemon. Edit `rig-config.json`: set `"tuneDelay": 5000`. Start daemon. Click a spot. Verify "Tune" (or PTT) lasts ~5 seconds. |
 
 ## 6. Cleanup
 - Stop the daemon (`Ctrl+C`).

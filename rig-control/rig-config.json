@@ -10,6 +10,7 @@
         "port": 12345,
         "pollInterval": 1000,
         "timeout": 5000,
+        "tuneDelay": 3000,
         "pttEnabled": false,
         "_comment": "Set type to 'rigctld' (TCP), 'flrig' (XML-RPC), or 'mock' (Simulation)"
     },

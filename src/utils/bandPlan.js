@@ -60,15 +60,12 @@ export const mapModeToRig = (mode, freq) => {
 
     const suffix = sb === 'USB' ? 'U' : 'L';
 
-    // List of digital modes to map to DATA-SB
+    // List of digital modes to map to sideband
     const digitalModes = ['FT8', 'FT4', 'JS8', 'WSPR', 'JT65', 'JT9', 'PSK31', 'PSK63', 'RTTY', 'DATA', 'PKT'];
 
-    if (digitalModes.includes(m)) {
-        return `DATA-${suffix}`;
-    }
-
-    if (m === 'CW') {
-        return `CW-${suffix}`;
+    // Map Digital, CW, and generic SSB to specific sideband
+    if (digitalModes.includes(m) || m === 'CW' || m === 'SSB') {
+        return sb;
     }
 
     // Pass through others (USB, LSB, AM, FM)
