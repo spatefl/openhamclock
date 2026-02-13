@@ -369,9 +369,11 @@ app.use(cors({
 }));
 
 // Rate limiting — protect against abuse
+// NOTE: OpenHamClock is a real-time dashboard that polls many endpoints every few seconds
+// per connected client, so the general limit must be generous for normal operation.
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 200, // 200 requests per minute per IP
+  max: 600, // 600 requests per minute per IP (10/sec covers normal dashboard polling)
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests, please try again later' }

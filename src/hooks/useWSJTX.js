@@ -46,10 +46,13 @@ export function useWSJTX(enabled = true) {
   const [error, setError] = useState(null);
   const lastTimestamp = useRef(0);
   const fullFetchCounter = useRef(0);
+  const backoffUntil = useRef(0); // Rate-limit backoff timestamp
 
   // Lightweight poll - just new decodes since last check
   const pollDecodes = useCallback(async () => {
     if (!enabled) return;
+    // Skip if we're in a rate-limit backoff window
+    if (Date.now() < backoffUntil.current) return;
     try {
       const base = lastTimestamp.current 
         ? `${DECODES_URL}?since=${lastTimestamp.current}`
@@ -57,6 +60,11 @@ export function useWSJTX(enabled = true) {
       const sep = base.includes('?') ? '&' : '?';
       const url = `${base}${sep}session=${sessionId}`;
       const res = await fetch(url);
+      if (res.status === 429) {
+        // Back off for 30 seconds on rate limit
+        backoffUntil.current = Date.now() + 30000;
+        return;
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       
@@ -82,8 +90,14 @@ export function useWSJTX(enabled = true) {
   // Full fetch - get everything including status, QSOs, clients
   const fetchFull = useCallback(async () => {
     if (!enabled) return;
+    // Skip if we're in a rate-limit backoff window
+    if (Date.now() < backoffUntil.current) return;
     try {
       const res = await fetch(`${API_URL}?session=${sessionId}`);
+      if (res.status === 429) {
+        backoffUntil.current = Date.now() + 30000;
+        return;
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       setData(json);
