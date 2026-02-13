@@ -11,6 +11,7 @@ import React, { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getBandColor } from '../utils/callsign.js';
 import { IconSearch, IconRefresh, IconMap } from './Icons.jsx';
+import CallsignLink from './CallsignLink.jsx';
 
 const PSKReporterPanel = ({ 
   callsign, 
@@ -361,7 +362,7 @@ const PSKReporterPanel = ({
                       color: 'var(--text-primary)', fontWeight: '600', fontSize: '11px',
                       overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
                     }}>
-                      {displayCall}
+                      <CallsignLink call={displayCall} color="var(--text-primary)" fontWeight="600" fontSize="11px" />
                       {grid && <span style={{ color: 'var(--text-muted)', fontWeight: '400', marginLeft: '4px', fontSize: '9px' }}>{grid}</span>}
                     </span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '9px' }}>
@@ -490,7 +491,7 @@ const PSKReporterPanel = ({
                       <span style={{ 
                         color: q.band ? getBandColor(q.frequency / 1000000) : 'var(--accent-green)', 
                         fontWeight: '600', minWidth: '65px' 
-                      }}>{q.dxCall}</span>
+                      }}><CallsignLink call={q.dxCall} color={q.band ? getBandColor(q.frequency / 1000000) : 'var(--accent-green)'} fontWeight="600" /></span>
                       <span style={{ color: 'var(--text-muted)', fontSize: '10px' }}>{q.band}</span>
                       <span style={{ color: 'var(--text-muted)', fontSize: '10px' }}>{q.mode}</span>
                       <span style={{ color: 'var(--text-muted)', fontSize: '10px' }}>{q.reportSent}/{q.reportRecv}</span>

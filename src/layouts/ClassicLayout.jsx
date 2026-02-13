@@ -3,6 +3,7 @@
  */
 import { DXNewsTicker, WorldMap } from '../components';
 import { getBandColor } from '../utils';
+import CallsignLink from '../components/CallsignLink.jsx';
 
 export default function ClassicLayout(props) {
   const {
@@ -253,7 +254,7 @@ export default function ClassicLayout(props) {
                 }}
               >
                 <span style={{ color: '#ffff00' }}>{(() => { const f = parseFloat(spot.freq); return f > 1000 ? (f/1000).toFixed(3) : f.toFixed(3); })()}</span>
-                <span style={{ color: '#00ffff' }}>{spot.call}</span>
+                <span style={{ color: '#00ffff' }}><CallsignLink call={spot.call} color="#00ffff" /></span>
                 <span style={{ color: '#888' }}>{spot.time || '--'}</span>
               </div>
             ))}
@@ -666,7 +667,7 @@ export default function ClassicLayout(props) {
                   }}
                 >
                   <span style={{ color: getBandColor(parseFloat(spot.freq) > 1000 ? parseFloat(spot.freq)/1000 : parseFloat(spot.freq)), fontWeight: '700' }}>{(() => { const f = parseFloat(spot.freq); return f > 1000 ? (f/1000).toFixed(3) : f.toFixed(3); })()}</span>
-                  <span style={{ color: 'var(--accent-cyan)', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{spot.call}</span>
+                  <span style={{ color: 'var(--accent-cyan)', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><CallsignLink call={spot.call} color="var(--accent-cyan)" fontWeight="600" /></span>
                   <span style={{ color: 'var(--text-muted)', textAlign: 'right', fontSize: '12px' }}>{spot.time || '--'}</span>
                 </div>
               ))}
@@ -1013,7 +1014,7 @@ export default function ClassicLayout(props) {
                 }}
               >
                 <span style={{ color: getBandColor(parseFloat(spot.freq) > 1000 ? parseFloat(spot.freq)/1000 : parseFloat(spot.freq)), fontWeight: '700' }}>{(() => { const f = parseFloat(spot.freq); return f > 1000 ? (f/1000).toFixed(3) : f.toFixed(3); })()}</span>
-                <span style={{ color: 'var(--accent-cyan)', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{spot.call}</span>
+                <span style={{ color: 'var(--accent-cyan)', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><CallsignLink call={spot.call} color="var(--accent-cyan)" fontWeight="600" /></span>
                 <span style={{ color: 'var(--text-muted)', textAlign: 'right', fontSize: '12px' }}>{spot.time || '--'}</span>
               </div>
             ))}

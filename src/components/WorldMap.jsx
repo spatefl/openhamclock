@@ -492,7 +492,7 @@ export const WorldMap = ({
               opacity: 1,
               fillOpacity: isHovered ? 1 : 0.9
             })
-              .bindPopup(`<b style="color: ${color}">${esc(path.dxCall)}</b><br>${esc(path.freq)} MHz<br>by ${esc(path.spotter)}`)
+              .bindPopup(`<b data-qrz-call="${esc(path.dxCall)}" style="color: ${color}; cursor:pointer">${esc(path.dxCall)}</b><br>${esc(path.freq)} MHz<br>by <span data-qrz-call="${esc(path.spotter)}" style="cursor:pointer">${esc(path.spotter)}</span>`)
               .addTo(map);
             if (isHovered) dxCircle.bringToFront();
             dxPathsMarkersRef.current.push(dxCircle);
@@ -540,7 +540,7 @@ export const WorldMap = ({
             iconAnchor: [7, 14]
           });
           const marker = L.marker([spot.lat, spot.lon], { icon: triangleIcon })
-            .bindPopup(`<b style="color:#44cc44">${esc(spot.call)}</b><br><span style="color:#888">${esc(spot.ref)}</span> ${esc(spot.locationDesc || '')}<br>${spot.name ? `<i>${esc(spot.name)}</i><br>` : ''}${esc(spot.freq)} ${esc(spot.mode || '')} <span style="color:#888">${esc(spot.time || '')}</span>`)
+            .bindPopup(`<b data-qrz-call="${esc(spot.call)}" style="color:#44cc44; cursor:pointer">${esc(spot.call)}</b><br><span style="color:#888">${esc(spot.ref)}</span> ${esc(spot.locationDesc || '')}<br>${spot.name ? `<i>${esc(spot.name)}</i><br>` : ''}${esc(spot.freq)} ${esc(spot.mode || '')} <span style="color:#888">${esc(spot.time || '')}</span>`)
             .addTo(map);
           potaMarkersRef.current.push(marker);
 
@@ -579,7 +579,7 @@ export const WorldMap = ({
             iconAnchor: [6, 6]
           });
           const marker = L.marker([spot.lat, spot.lon], { icon: diamondIcon })
-            .bindPopup(`<b style="color:#ff9632">${esc(spot.call)}</b><br><span style="color:#888">${esc(spot.ref)}</span>${spot.summit ? ` — ${esc(spot.summit)}` : ''}${spot.points ? ` <span style="color:#ff9632">(${esc(spot.points)}pt)</span>` : ''}<br>${esc(spot.freq)} ${esc(spot.mode || '')} <span style="color:#888">${esc(spot.time || '')}</span>`)
+            .bindPopup(`<b data-qrz-call="${esc(spot.call)}" style="color:#ff9632; cursor:pointer">${esc(spot.call)}</b><br><span style="color:#888">${esc(spot.ref)}</span>${spot.summit ? ` — ${esc(spot.summit)}` : ''}${spot.points ? ` <span style="color:#ff9632">(${esc(spot.points)}pt)</span>` : ''}<br>${esc(spot.freq)} ${esc(spot.mode || '')} <span style="color:#888">${esc(spot.time || '')}</span>`)
             .addTo(map);
           sotaMarkersRef.current.push(marker);
 
@@ -810,7 +810,7 @@ export const WorldMap = ({
                 opacity: 0.9,
                 fillOpacity: 0.8
               }).bindPopup(`
-                <b>${esc(displayCall)}</b><br>
+                <b data-qrz-call="${esc(displayCall)}" style="cursor:pointer">${esc(displayCall)}</b><br>
                 ${esc(spot.mode)} @ ${esc(freqMHz)} MHz<br>
                 ${spot.snr !== null ? `SNR: ${spot.snr > 0 ? '+' : ''}${spot.snr} dB` : ''}
               `).addTo(map);
@@ -894,7 +894,7 @@ export const WorldMap = ({
                 iconAnchor: [4, 4]
               })
             }).bindPopup(`
-              <b>${esc(call)}</b> ${spot.type === 'CQ' ? 'CQ' : ''}<br>
+              <b data-qrz-call="${esc(call)}" style="cursor:pointer">${esc(call)}</b> ${spot.type === 'CQ' ? 'CQ' : ''}<br>
               ${esc(spot.grid || '')} ${esc(spot.band || '')}${spot.gridSource === 'prefix' ? ' <i>(est)</i>' : spot.gridSource === 'cache' ? ' <i>(prev)</i>' : ''}<br>
               ${esc(spot.mode || '')} SNR: ${spot.snr != null ? (spot.snr >= 0 ? '+' : '') + spot.snr : '?'} dB
             `).addTo(map);

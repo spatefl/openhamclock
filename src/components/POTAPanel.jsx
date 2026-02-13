@@ -3,6 +3,7 @@
  * Displays Parks on the Air activations with ON/OFF toggle
  */
 import React from 'react';
+import CallsignLink from './CallsignLink.jsx';
 
 export const POTAPanel = ({ data, loading, showOnMap, onToggleMap }) => {
   return (
@@ -52,7 +53,7 @@ export const POTAPanel = ({ data, loading, showOnMap, onToggleMap }) => {
                 }}
               >
                 <span style={{ color: '#44cc44', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {spot.call}
+                  <CallsignLink call={spot.call} color="#44cc44" fontWeight="600" />
                 </span>
                 <span style={{ color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {spot.locationDesc || spot.ref}
