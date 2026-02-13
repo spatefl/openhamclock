@@ -2561,6 +2561,57 @@ app.get('/api/dxcluster/paths', async (req, res) => {
       }
     }
     
+    // Check HamQTH callsign cache for better accuracy (24h TTL, populated by /api/callsign/:call)
+    // This gives DXCC-level lat/lon which is more accurate than prefix country centroids
+    const hamqthLocations = {};
+    const hamqthMisses = []; // Callsigns to look up in background
+    for (const call of callsToLookup) {
+      const cached = callsignLookupCache.get(call);
+      if (cached && (now - cached.timestamp) < CALLSIGN_CACHE_TTL && cached.data?.lat != null) {
+        hamqthLocations[call] = {
+          lat: cached.data.lat,
+          lon: cached.data.lon,
+          country: cached.data.country || '',
+          grid: cached.data.grid || null,
+          source: 'hamqth'
+        };
+      } else if (!prefixLocations[call]?.grid) {
+        // Only queue lookups for calls that don't already have grid-level accuracy
+        hamqthMisses.push(call);
+      }
+    }
+    
+    // Fire background HamQTH lookups for cache misses (non-blocking, improves next poll)
+    // Limit to 10 per cycle to avoid hammering HamQTH
+    if (hamqthMisses.length > 0) {
+      const batch = hamqthMisses.slice(0, 10);
+      logDebug('[DX Paths] Background HamQTH lookup for', batch.length, 'callsigns');
+      for (const call of batch) {
+        // Fire-and-forget — results land in callsignLookupCache for next poll
+        fetch(`https://www.hamqth.com/dxcc.php?callsign=${encodeURIComponent(call)}`, {
+          headers: { 'User-Agent': 'OpenHamClock/' + APP_VERSION },
+          signal: AbortSignal.timeout(5000)
+        }).then(async (resp) => {
+          if (!resp.ok) return;
+          const text = await resp.text();
+          const latMatch = text.match(/<lat>([^<]+)<\/lat>/);
+          const lonMatch = text.match(/<lng>([^<]+)<\/lng>/);
+          const countryMatch = text.match(/<n>([^<]+)<\/name>/);
+          if (latMatch && lonMatch) {
+            callsignLookupCache.set(call, {
+              data: {
+                callsign: call,
+                lat: parseFloat(latMatch[1]),
+                lon: parseFloat(lonMatch[1]),
+                country: countryMatch ? countryMatch[1] : ''
+              },
+              timestamp: Date.now()
+            });
+          }
+        }).catch(() => {}); // Silent fail for background lookups
+      }
+    }
+    
     // Build new paths with locations - try grid first, fall back to prefix
     const newPaths = newSpots
       .map(spot => {
@@ -2587,6 +2638,11 @@ app.get('/api/dxcluster/paths', async (req, res) => {
               dxGridSquare = extractedGrids.dxGrid;
             }
           }
+        }
+        
+        // Fall back to HamQTH cached location (more accurate than prefix)
+        if (!dxLoc && hamqthLocations[spot.dxCall]) {
+          dxLoc = hamqthLocations[spot.dxCall];
         }
         
         // Fall back to prefix location (now includes grid-based coordinates!)
@@ -2620,6 +2676,11 @@ app.get('/api/dxcluster/paths', async (req, res) => {
               spotterGridSquare = extractedGrids.spotterGrid;
             }
           }
+        }
+        
+        // Fall back to HamQTH cached location for spotter
+        if (!spotterLoc && hamqthLocations[spot.spotter]) {
+          spotterLoc = hamqthLocations[spot.spotter];
         }
         
         // Fall back to prefix location for spotter (now includes grid-based coordinates!)
