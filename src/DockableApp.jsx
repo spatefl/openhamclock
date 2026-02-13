@@ -216,7 +216,6 @@ export const DockableApp = ({
       'propagation-bars': { name: 'VOACAP Bars', icon: '📊', group: 'Propagation' },
       'band-conditions': { name: 'Band Conditions', icon: '📶', group: 'Propagation' },
       'band-health': { name: 'Band Health', icon: '📶' },
-      'rotator': { name: 'Rotator', icon: '🧭' },
       'dx-cluster': { name: 'DX Cluster', icon: '📻' },
       'psk-reporter': { name: 'PSK Reporter', icon: '📡' },
       'dxpeditions': { name: 'DXpeditions', icon: '🏝️' },
@@ -562,18 +561,7 @@ export const DockableApp = ({
             nodeId={nodeId}
           />
         );
-        break;
-
-      case 'rotator':
-        content = (
-          <RotatorPanel
-            endpointUrl="/api/rotator/status"
-            pollMs={1000}
-            staleMs={5000}
-            mock={false}
-          />
-        );
-        break;  
+        break; 
 
       case 'id-timer':
         content = <IDTimerPanel callsign={config.callsign} />;
