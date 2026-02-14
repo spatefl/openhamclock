@@ -25,8 +25,8 @@ export const useWWFFSpots = () => {
               const comments = (s.remarks || '').toUpperCase().trim();
               if (comments === 'QRT' || comments.startsWith('QRT ') || comments.startsWith('QRT,')) return false;
 
-              // We should also time it out if it's more than 30 minutes old
-              if (Math.floor(Date.now() / 1000) - s.spot_time > 1800) return false;
+              // We should also time it out if it's more than 60 minutes old
+              if (Math.floor(Date.now() / 1000) - s.spot_time > 3600) return false;
               
               return true;
             })
