@@ -4,6 +4,7 @@
  */
 import { useState, useEffect, useRef } from 'react';
 import { useVisibilityRefresh } from './useVisibilityRefresh';
+import { apiFetch } from '../utils/apiFetch';
 
 export const useDXpeditions = () => {
   const [data, setData] = useState([]);
@@ -13,8 +14,8 @@ export const useDXpeditions = () => {
   useEffect(() => {
     const fetchDXpeditions = async () => {
       try {
-        const response = await fetch('/api/dxpeditions');
-        if (response.ok) {
+        const response = await apiFetch('/api/dxpeditions');
+        if (response?.ok) {
           const dxpeditions = await response.json();
           setData(dxpeditions);
         }

@@ -150,6 +150,10 @@ setup_repository() {
     # Install npm dependencies
     npm install --include=dev
     
+    # Download vendor assets (fonts, Leaflet) for self-hosting — no external CDN requests
+    echo -e "${BLUE}>>> Downloading vendor assets for privacy...${NC}"
+    bash scripts/vendor-download.sh || echo -e "${YELLOW}⚠ Vendor download failed — will fall back to CDN${NC}"
+    
     # Build frontend for production
     npm run build
     

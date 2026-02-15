@@ -4,6 +4,7 @@
  * Shows a brief toast notification before reloading so the user knows what happened.
  */
 import { useEffect, useRef } from 'react';
+import { apiFetch } from '../../utils/apiFetch';
 
 const POLL_INTERVAL = 60 * 1000; // Check every 60 seconds
 
@@ -17,8 +18,8 @@ export default function useVersionCheck() {
 
     const check = async () => {
       try {
-        const res = await fetch('/api/version', { cache: 'no-store' });
-        if (!res.ok) return;
+        const res = await apiFetch('/api/version', { cache: 'no-store' });
+        if (!res?.ok) return;
         const { version } = await res.json();
         if (!version) return;
 

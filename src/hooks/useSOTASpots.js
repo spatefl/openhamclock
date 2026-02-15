@@ -4,6 +4,7 @@
  */
 import { useState, useEffect, useRef } from 'react';
 import { useVisibilityRefresh } from './useVisibilityRefresh';
+import { apiFetch } from '../utils/apiFetch';
 
 export const useSOTASpots = () => {
   const [data, setData] = useState([]);
@@ -13,8 +14,8 @@ export const useSOTASpots = () => {
   useEffect(() => {
     const fetchSOTA = async () => {
       try {
-        const res = await fetch('/api/sota/spots');
-        if (res.ok) {
+        const res = await apiFetch('/api/sota/spots');
+        if (res?.ok) {
           const spots = await res.json();
 
           // Map SOTA API response to our standard spot format

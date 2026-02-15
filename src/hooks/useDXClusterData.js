@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 
 import {applyDXFilters} from "../utils/dxClusterFilters";
 import { useVisibilityRefresh } from './useVisibilityRefresh';
+import { apiFetch } from '../utils/apiFetch';
 
 export const useDXClusterData = (filters = {}, config = {}) => {
   const [allData, setAllData] = useState([]);
@@ -56,8 +57,8 @@ export const useDXClusterData = (filters = {}, config = {}) => {
     const fetchData = async () => {
       try {
         const queryParams = buildQueryParams();
-        const response = await fetch(`/api/dxcluster/paths?${queryParams}`);
-        if (response.ok) {
+        const response = await apiFetch(`/api/dxcluster/paths?${queryParams}`);
+        if (response?.ok) {
           const newData = await response.json();
           const now = Date.now();
           

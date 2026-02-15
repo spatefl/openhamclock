@@ -401,12 +401,11 @@ export function useLayer({ enabled = false, opacity = 0.7, map = null, callsign,
   
   // Low memory mode limits
   const MAX_SPOTS = lowMemoryMode ? 25 : 200;
-  const UPDATE_INTERVAL = lowMemoryMode ? 60000 : 60000; // 60s for all - be kind to servers and bandwidth
+  const UPDATE_INTERVAL = lowMemoryMode ? 30000 : 10000; // 10s normal, 30s low-memory (panel says "Update: 10sec")
   
   const layersRef = useRef([]);
   const controlRef = useRef(null);
   const updateIntervalRef = useRef(null);
-  const spotsHistoryRef = useRef([]); // Keep a rolling history of spots
 
   // Fetch RBN spots
   const fetchRBNSpots = async () => {
@@ -416,11 +415,9 @@ export function useLayer({ enabled = false, opacity = 0.7, map = null, callsign,
     }
 
     try {
-      console.log(`[RBN] Fetching real-time spots for ${callsign}...`);
-      
-      // New streaming API - get ALL recent spots
+      // Server filters by callsign and enriches with locations — no client-side firehose scanning
       const response = await fetch(
-        `/api/rbn/spots?minutes=${timeWindow}`,
+        `/api/rbn/spots?callsign=${encodeURIComponent(callsign)}&minutes=${Math.ceil(timeWindow)}`,
         { headers: { 'Accept': 'application/json' } }
       );
       
@@ -429,136 +426,49 @@ export function useLayer({ enabled = false, opacity = 0.7, map = null, callsign,
       }
       
       const data = await response.json();
-      console.log(`[RBN] Received ${data.count} total spots`);
       
       if (data && data.spots && Array.isArray(data.spots)) {
-        // Filter for spots where DX (spotted station) matches OUR callsign
-        const mySpots = data.spots.filter(spot => 
-          spot.dx && spot.dx.toUpperCase() === callsign.toUpperCase()
-        );
+        const mySpots = data.spots;
         
-        console.log(`[RBN] Found ${mySpots.length} spots for ${callsign}`);
+        console.log(`[RBN] Received ${mySpots.length} spots for ${callsign}`);
         
-        // Strip callsign suffixes (e.g., DL8LAS-1 → DL8LAS, K1TXT/B → K1TXT)
-        mySpots.forEach(spot => {
-          if (spot.callsign) {
-            // Remove anything after / or -
-            const baseCall = spot.callsign.split(/[\/\-]/)[0];
-            if (baseCall !== spot.callsign) {
-              console.log(`[RBN] Stripped callsign: ${spot.callsign} → ${baseCall}`);
-              spot.callsign = baseCall;
-            }
-          }
-        });
-        
-        // Add new spots to history
-        const now = Date.now();
-        const maxHistoryMs = 15 * 60 * 1000; // 15 minutes max history
-        
-        // Merge new spots with history, avoiding duplicates
-        const existingSpotKeys = new Set(
-          spotsHistoryRef.current.map(s => `${s.callsign}-${s.frequency}-${s.timestamp}`)
-        );
-        const newUniqueSpots = mySpots.filter(spot => {
-          const key = `${spot.callsign}-${spot.frequency}-${spot.timestamp}`;
-          return !existingSpotKeys.has(key);
-        });
-        
-        console.log(`[RBN] Adding ${newUniqueSpots.length} new unique spots to history`);
-        spotsHistoryRef.current = [...spotsHistoryRef.current, ...newUniqueSpots];
-        
-        // Remove spots older than 15 minutes from history
-        spotsHistoryRef.current = spotsHistoryRef.current.filter(spot => {
-          const spotTimestamp = new Date(spot.timestamp).getTime();
-          const ageMs = now - spotTimestamp;
-          return ageMs <= maxHistoryMs;
-        });
-        
-        console.log(`[RBN] History now contains ${spotsHistoryRef.current.length} spots (max 15min)`);
-        
-        // Use history for display
-        const allSpots = spotsHistoryRef.current;
-        
-        // Log details of found spots
+        // Log spot details
         if (mySpots.length > 0) {
-          console.log(`[RBN] Spot details for ${callsign}:`);
           mySpots.forEach((spot, idx) => {
-            console.log(`  ${idx + 1}. Skimmer: ${spot.callsign}, Freq: ${spot.freqMHz} MHz, SNR: ${spot.snr} dB, Band: ${spot.band}, Grid: ${spot.grid || 'MISSING'}, HasLat: ${!!spot.skimmerLat}, HasLon: ${!!spot.skimmerLon}`);
+            console.log(`  ${idx + 1}. Skimmer: ${spot.callsign}, Freq: ${spot.freqMHz} MHz, SNR: ${spot.snr} dB, Band: ${spot.band}, Grid: ${spot.grid || 'MISSING'}, Lat: ${spot.skimmerLat || '?'}, Lon: ${spot.skimmerLon || '?'}`);
           });
         }
         
-        // Apply band and SNR filters
-        const filteredSpots = allSpots.filter(spot => {
-          const meetsFilter = selectedBand === 'all' || spot.band === selectedBand;
-          const meetsSNR = (spot.snr || 0) >= minSNR;
-          return meetsFilter && meetsSNR;
-        });
-        
-        console.log(`[RBN] After filters (band: ${selectedBand}, minSNR: ${minSNR}): ${filteredSpots.length} spots`);
-        
-        // Lookup locations for spots that don't have them yet
-        const spotsWithLocations = await Promise.all(
-          filteredSpots.map(async (spot) => {
+        // Client-side location fallback for any spots the server couldn't resolve
+        const enrichedSpots = await Promise.all(
+          mySpots.map(async (spot) => {
+            if (spot.grid && spot.skimmerLat && spot.skimmerLon) return spot;
             try {
-              // Check if we already have grid and location
-              if (!spot.grid || !spot.skimmerLat || !spot.skimmerLon) {
-                console.log(`[RBN] Looking up location for ${spot.callsign}...`);
-                // Lookup skimmer location (cached on server)
-                const locationResponse = await fetch(`/api/rbn/location/${spot.callsign}`);
-                if (locationResponse.ok) {
-                  const locationData = await locationResponse.json();
-                  console.log(`[RBN] Got location for ${spot.callsign}: ${locationData.grid}`);
-                  return {
-                    ...spot,
-                    grid: locationData.grid,
-                    skimmerLat: locationData.lat,
-                    skimmerLon: locationData.lon,
-                    skimmerCountry: locationData.country
-                  };
-                } else {
-                  console.warn(`[RBN] Location lookup failed for ${spot.callsign}: ${locationResponse.status}`);
-                }
+              const locationResponse = await fetch(`/api/rbn/location/${spot.callsign}`);
+              if (locationResponse.ok) {
+                const loc = await locationResponse.json();
+                return { ...spot, grid: loc.grid, skimmerLat: loc.lat, skimmerLon: loc.lon, skimmerCountry: loc.country };
               }
             } catch (err) {
-              console.warn(`[RBN] Failed to lookup ${spot.callsign}: ${err.message}`);
+              console.warn(`[RBN] Location fallback failed for ${spot.callsign}`);
             }
             return spot;
           })
         );
         
-        const spotsWithGrid = spotsWithLocations.filter(s => s.grid);
-        console.log(`[RBN] Spots with locations: ${spotsWithGrid.length} out of ${spotsWithLocations.length}`);
+        // Store ALL spots — the render effect handles band/SNR/age filtering
+        // so slider changes take effect instantly without re-fetching
+        setSpots(enrichedSpots);
         
-        // Log which spots are missing locations
-        const spotsWithoutGrid = spotsWithLocations.filter(s => !s.grid);
-        if (spotsWithoutGrid.length > 0) {
-          console.warn(`[RBN] Spots MISSING locations (${spotsWithoutGrid.length}):`, 
-            spotsWithoutGrid.map(s => s.callsign).join(', '));
-        }
-        
-        // Update history with location data
-        spotsWithLocations.forEach(spot => {
-          if (spot.grid && spot.skimmerLat && spot.skimmerLon) {
-            const idx = spotsHistoryRef.current.findIndex(s => 
-              s.callsign === spot.callsign && s.frequency === spot.frequency && s.timestamp === spot.timestamp
-            );
-            if (idx >= 0) {
-              spotsHistoryRef.current[idx] = spot;
-            }
-          }
-        });
-        
-        setSpots(spotsWithLocations);
-        
-        // Calculate statistics
-        const validSNRs = spotsWithLocations
+        // Calculate statistics from all spots
+        const validSNRs = enrichedSpots
           .map(s => s.snr)
           .filter(snr => snr !== null && snr !== undefined);
         
-        const uniqueSkimmers = new Set(spotsWithLocations.map(s => s.callsign));
+        const uniqueSkimmers = new Set(enrichedSpots.map(s => s.callsign));
         
         setStats({
-          total: spotsWithLocations.length,
+          total: enrichedSpots.length,
           skimmers: uniqueSkimmers.size,
           avgSNR: validSNRs.length > 0 
             ? (validSNRs.reduce((a, b) => a + b, 0) / validSNRs.length).toFixed(1)

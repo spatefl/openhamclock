@@ -183,6 +183,10 @@ echo "📦 Installing dependencies..."
 npm install --include=dev
 
 echo ""
+echo "📦 Downloading vendor assets..."
+bash scripts/vendor-download.sh 2>/dev/null || echo "   ⚠ Vendor download failed — will fall back to CDN"
+
+echo ""
 echo "🔨 Building frontend..."
 # Remove old dist/ to prevent stale hashed JS chunks from being served
 # (browsers may cache old chunks, causing blank screens after update)

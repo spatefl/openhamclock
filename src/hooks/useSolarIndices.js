@@ -3,6 +3,7 @@
  * Fetches solar indices with history and Kp forecast
  */
 import { useState, useEffect } from 'react';
+import { apiFetch } from '../utils/apiFetch';
 
 export const useSolarIndices = () => {
   const [data, setData] = useState(null);
@@ -11,8 +12,8 @@ export const useSolarIndices = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await fetch('/api/solar-indices');
-        if (response.ok) {
+        const response = await apiFetch('/api/solar-indices');
+        if (response?.ok) {
           const result = await response.json();
           setData(result);
         }

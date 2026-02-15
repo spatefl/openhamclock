@@ -3,6 +3,7 @@
  * Fetches spots where user's callsign appears (spotted or was spotted)
  */
 import { useState, useEffect } from 'react';
+import { apiFetch } from '../utils/apiFetch';
 
 export const useMySpots = (callsign) => {
   const [data, setData] = useState([]);
@@ -17,8 +18,8 @@ export const useMySpots = (callsign) => {
 
     const fetchMySpots = async () => {
       try {
-        const response = await fetch(`/api/myspots/${encodeURIComponent(callsign)}`);
-        if (response.ok) {
+        const response = await apiFetch(`/api/myspots/${encodeURIComponent(callsign)}`);
+        if (response?.ok) {
           const spots = await response.json();
           setData(spots);
         }

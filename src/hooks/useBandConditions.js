@@ -4,6 +4,7 @@
  * Data sourced from NOAA, calculated by N0NBH, updated every 3 hours
  */
 import { useState, useEffect } from 'react';
+import { apiFetch } from '../utils/apiFetch';
 
 // Map N0NBH grouped band ranges to individual bands
 // N0NBH provides: 80m-40m, 30m-20m, 17m-15m, 12m-10m (each with day/night)
@@ -32,7 +33,8 @@ export const useBandConditions = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await fetch('/api/n0nbh');
+        const response = await apiFetch('/api/n0nbh');
+        if (!response) return; // backed off
         if (!response.ok) throw new Error(`N0NBH API error: ${response.status}`);
         const n0nbh = await response.json();
         

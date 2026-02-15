@@ -20,6 +20,9 @@ COPY . .
 # Ensure public/ exists (may not be tracked in git)
 RUN mkdir -p /app/public
 
+# Download vendor assets for self-hosting (fonts, Leaflet — no external CDN at runtime)
+RUN apk add --no-cache curl && bash scripts/vendor-download.sh || true
+
 # Build the React app with Vite
 RUN npm run build
 

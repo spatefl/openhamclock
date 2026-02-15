@@ -4,6 +4,7 @@
  */
 import { useState, useEffect, useRef } from 'react';
 import { useVisibilityRefresh } from './useVisibilityRefresh';
+import { apiFetch } from '../utils/apiFetch';
 
 export const useContests = () => {
   const [data, setData] = useState([]);
@@ -13,8 +14,8 @@ export const useContests = () => {
   useEffect(() => {
     const fetchContests = async () => {
       try {
-        const response = await fetch('/api/contests');
-        if (response.ok) {
+        const response = await apiFetch('/api/contests');
+        if (response?.ok) {
           const contests = await response.json();
           setData(contests);
         }

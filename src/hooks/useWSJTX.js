@@ -9,6 +9,7 @@
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useVisibilityRefresh } from './useVisibilityRefresh';
+import { apiFetch } from '../utils/apiFetch';
 
 const POLL_INTERVAL = 2000; // Poll every 2 seconds for near-real-time feel
 const API_URL = '/api/wsjtx';
@@ -62,7 +63,8 @@ export function useWSJTX(enabled = true) {
         : DECODES_URL;
       const sep = base.includes('?') ? '&' : '?';
       const url = `${base}${sep}session=${sessionId}`;
-      const res = await fetch(url);
+      const res = await apiFetch(url);
+      if (!res) return; // backed off globally
       if (res.status === 429) {
         // Back off for 30 seconds on rate limit
         backoffUntil.current = Date.now() + 30000;
@@ -96,7 +98,8 @@ export function useWSJTX(enabled = true) {
     // Skip if we're in a rate-limit backoff window
     if (Date.now() < backoffUntil.current) return;
     try {
-      const res = await fetch(`${API_URL}?session=${sessionId}`);
+      const res = await apiFetch(`${API_URL}?session=${sessionId}`);
+      if (!res) return; // backed off globally
       if (res.status === 429) {
         backoffUntil.current = Date.now() + 30000;
         return;

@@ -15,7 +15,6 @@ import {
 } from '../utils/geo.js';
 import { getBandColor } from '../utils/callsign.js';
 import { createTerminator } from '../utils/terminator.js';
-
 import { getAllLayers } from '../plugins/layerRegistry.js';
 import useLocalInstall from '../hooks/app/useLocalInstall.js';
 import { IconSatellite, IconTag, IconSun, IconMoon } from './Icons.jsx';
@@ -57,10 +56,8 @@ export const WorldMap = ({
   showPOTA, 
   showWWFF,
   showSOTA,
-  showSatellites, 
   showPSKReporter,
   showWSJTX,
-  onToggleSatellites, 
   hoveredSpot,
   callsign = 'N0CALL',
   showDXNews = true,
@@ -72,8 +69,8 @@ export const WorldMap = ({
   const mapInstanceRef = useRef(null);
   const tileLayerRef = useRef(null);
   const terminatorRef = useRef(null);
-  const deMarkerRef = useRef(null);
-  const dxMarkerRef = useRef(null);
+  const deMarkerRef = useRef([]);
+  const dxMarkerRef = useRef([]);
   const sunMarkerRef = useRef(null);
   const moonMarkerRef = useRef(null);
   const potaMarkersRef = useRef([]);
@@ -131,10 +128,15 @@ export const WorldMap = ({
     } catch (e) { return {}; }
   };
   const storedSettings = getStoredMapSettings();
-  
   const [mapStyle, setMapStyle] = useState(storedSettings.mapStyle || 'dark');
+
+  // NASA GIBS Night Lights (VIIRS)
+  const nightUrl = 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_CityLights_2012/default/2012-03-12/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpg';
+	
   // GIBS MODIS CODE
   const [gibsOffset, setGibsOffset] = useState(0); 
+  // City lights intensity (range 0 to 1)
+  // const [nightIntensity, setNightIntensity] = useState(0.8);
   
   const getGibsUrl = (days) => {
     const date = new Date(Date.now() - (days * 24 + 12) * 60 * 60 * 1000);
@@ -142,9 +144,15 @@ export const WorldMap = ({
     return `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/${dateStr}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg`;
   };
   // End GIBS MODIS CODE
+	
   const [mapView, setMapView] = useState({
     center: storedSettings.center || [20, 0],
     zoom: storedSettings.zoom || 2.5
+  });
+
+  // Map lock — prevents accidental panning/zooming (useful on touch devices)
+  const [mapLocked, setMapLocked] = useState(() => {
+    try { return localStorage.getItem('openhamclock_mapLocked') === 'true'; } catch { return false; }
   });
   
   // Save map settings to localStorage when changed (merge, don't overwrite)
@@ -162,63 +170,78 @@ export const WorldMap = ({
 
   // Initialize map
   useEffect(() => {
-    if (!mapRef.current || mapInstanceRef.current) return;
-    
-    // Make sure Leaflet is available
-    if (typeof L === 'undefined') {
-      console.error('Leaflet not loaded');
-      return;
-    }
+	// If map is already initialized, don't do it again
+	  if (!mapRef.current || mapInstanceRef.current) return;
+	  
+	  const L = window.L;
+	  if (typeof L === 'undefined') {
+		console.error('Leaflet not loaded');
+		return;
+	  }
 
-    const map = L.map(mapRef.current, {
-      center: mapView.center,
-      zoom: mapView.zoom,
-      minZoom: 1,
-      maxZoom: 18,
-      worldCopyJump: true,
-      zoomControl: true,
-      zoomSnap: 0.1,
-      zoomDelta: 0.25,
-      wheelPxPerZoomLevel: 200,
-      maxBounds: [[-90, -Infinity], [90, Infinity]],
-      maxBoundsViscosity: 0.8
-    });
+	  const map = L.map(mapRef.current, {
+		center: mapView.center,
+		zoom: mapView.zoom,
+		minZoom: 1,
+		maxZoom: 18,
+		worldCopyJump: true,
+		zoomControl: true,
+		zoomSnap: 0.1,
+		zoomDelta: 0.25,
+		wheelPxPerZoomLevel: 200,
+		maxBounds: [[-90, -Infinity], [90, Infinity]],
+		maxBoundsViscosity: 0.8
+	  });
 
-    // Initial tile layer
-    tileLayerRef.current = L.tileLayer(MAP_STYLES[mapStyle].url, {
-      attribution: MAP_STYLES[mapStyle].attribution,
-      noWrap: false,
-      crossOrigin: 'anonymous'
-    }).addTo(map);
+	  // --- night pane ---
+	  map.createPane('nightPane');
+	  const nightPane = map.getPane('nightPane');
+	  nightPane.style.zIndex = 650; // Keep it on the very top
+	  nightPane.style.pointerEvents = 'none'; 
+	  nightPane.id = 'night-lights-pane'; // Links to CSS for 'screen' blending
 
-    // Day/night terminator (custom implementation spans multiple world copies)
-    terminatorRef.current = createTerminator({
-      resolution: 2,
-      fillOpacity: 0.35,
-      fillColor: '#000020',
-      color: '#ffaa00',
-      weight: 2,
-      dashArray: '5, 5'
-    }).addTo(map);
+	  // Initial tile layer (Base Day Map)
+	  tileLayerRef.current = L.tileLayer(MAP_STYLES[mapStyle].url, {
+		attribution: MAP_STYLES[mapStyle].attribution,
+		noWrap: false,
+		crossOrigin: 'anonymous'
+	  }).addTo(map);
 
-    // Refresh terminator
-    setTimeout(() => {
-      if (terminatorRef.current) {
-        terminatorRef.current.setTime();
-      }
-    }, 100);
+	  // Day/night terminator
+	  terminatorRef.current = createTerminator({
+		resolution: 2,
+		fillOpacity: 0.1, 
+		fillColor: '#000010',
+		color: '#ffaa00',
+		weight: 2,
+		dashArray: '5, 5',
+		wrap: false
+	  }).addTo(map);
 
-    // Update terminator every minute
-    const terminatorInterval = setInterval(() => {
-      if (terminatorRef.current) {
-        terminatorRef.current.setTime();
-      }
-    }, 60000);
+	  // Refresh terminator immediately to set initial position
+	  setTimeout(() => {
+		if (terminatorRef.current) {
+		  terminatorRef.current.setTime();
+		  // Ensure the mask updates immediately after the first path is generated
+		  const path = terminatorRef.current.getElement();
+		  if (path) {
+			path.classList.add('terminator-path');
+		  }
+		}
+	  }, 100);
 
-    // Click handler for setting DX (only if not locked)
+	  const terminatorInterval = setInterval(() => {
+		if (terminatorRef.current) {
+		  terminatorRef.current.setTime();
+		  const path = terminatorRef.current.getElement();
+		  if (path) {
+			path.classList.add('terminator-path');
+		  }
+		}
+	  }, 60000);
+
     map.on('click', (e) => {
       if (onDXChange && !dxLockedRef.current) {
-        // Normalize longitude to -180 to 180 range (Leaflet can return values outside this range when map wraps)
         let lon = e.latlng.lng;
         while (lon > 180) lon -= 360;
         while (lon < -180) lon += 360;
@@ -226,10 +249,6 @@ export const WorldMap = ({
       }
     });
     
-    // Save map view when user pans or zooms
-    // IMPORTANT: Do NOT normalize longitude here. Leaflet tracks center beyond ±180 
-    // for smooth panning across the antimeridian (worldCopyJump). Normalizing causes
-    // the map to jump for users near the date line (Australia, NZ, Pacific).
     map.on('moveend', () => {
       const center = map.getCenter();
       const zoom = map.getZoom();
@@ -238,7 +257,14 @@ export const WorldMap = ({
 
     mapInstanceRef.current = map;
 
-    // ResizeObserver to handle panel resize/maximize in dockable layout
+    // Apply initial map lock state if saved
+    if (mapLocked) {
+      [map.dragging, map.touchZoom, map.doubleClickZoom, map.scrollWheelZoom, map.boxZoom, map.keyboard]
+        .forEach(h => { if (h) h.disable(); });
+      const zc = map.zoomControl?.getContainer();
+      if (zc) zc.style.display = 'none';
+    }
+
     const resizeObserver = new ResizeObserver(() => {
       if (mapInstanceRef.current) {
         mapInstanceRef.current.invalidateSize();
@@ -252,38 +278,98 @@ export const WorldMap = ({
       map.remove();
       mapInstanceRef.current = null;
     };
-  }, []);
+  }, []); // Empty dependency array for initialization
 
-  // Update tile layer when style changes
+  // Apply map lock — disable all navigation interactions while keeping click-through
   useEffect(() => {
-    if (!mapInstanceRef.current || !tileLayerRef.current) return;
-    
-    mapInstanceRef.current.removeLayer(tileLayerRef.current);
-	// Determine the URL: Use the dynamic GIBS generator if 'MODIS' is selected
-    let url = MAP_STYLES[mapStyle].url;
-    if (mapStyle === 'MODIS') {
-      url = getGibsUrl(gibsOffset);
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    const handlers = [
+      map.dragging,
+      map.touchZoom,
+      map.doubleClickZoom,
+      map.scrollWheelZoom,
+      map.boxZoom,
+      map.keyboard
+    ];
+
+    handlers.forEach(h => { if (h) mapLocked ? h.disable() : h.enable(); });
+
+    // Hide/show zoom control
+    const zoomControl = map.zoomControl;
+    if (zoomControl) {
+      const el = zoomControl.getContainer();
+      if (el) el.style.display = mapLocked ? 'none' : '';
     }
 
+    // Persist to localStorage
+    try { localStorage.setItem('openhamclock_mapLocked', mapLocked ? 'true' : 'false'); } catch {}
+  }, [mapLocked]);
+	
+// Update tile layer and handle night light clipping
+
+  useEffect(() => {
+    if (!mapInstanceRef.current || !tileLayerRef.current) return;
+    const map = mapInstanceRef.current;
+    
+    // Remove old tile layer completely — setUrl() doesn't flush the tile cache,
+    // leaving stale "Map data not yet available" tiles visible until zoom/pan.
+    map.removeLayer(tileLayerRef.current);
+
+    // Determine the URL: Use the dynamic GIBS generator if 'MODIS' is selected
+    let url = MAP_STYLES[mapStyle].url;
+    if (mapStyle === 'MODIS') { url = getGibsUrl(gibsOffset); }
+
+    // Create fresh tile layer with correct attribution and options
     tileLayerRef.current = L.tileLayer(url, {
       attribution: MAP_STYLES[mapStyle].attribution,
       noWrap: false,
       crossOrigin: 'anonymous',
       // NASA GIBS tiles only cover -180..180; other tile providers wrap naturally
       ...(mapStyle === 'MODIS' ? { bounds: [[-85, -180], [85, 180]] } : {})
-    }).addTo(mapInstanceRef.current);
+    }).addTo(map);
 
-    // Ensure terminator and other overlays stay on top of the new tile layer
+    // 3. Terminator Shadow (Gray Line) Set Color to transparent to hide terminator vertical lines at 180° and -180°
     if (terminatorRef.current) {
-      terminatorRef.current.bringToFront();
+        terminatorRef.current.setStyle({
+            fillOpacity: 0.6, 
+            fillColor: '#000008',
+            color: 'transparent',
+            weight: 2
+        });
+        
+        if (typeof terminatorRef.current.bringToFront === 'function') {
+            terminatorRef.current.bringToFront();
+        }
     }
     
     // If you have a countries overlay, ensure it stays visible
     if (countriesLayerRef.current) {
       countriesLayerRef.current.bringToFront();
     }
-  }, [mapStyle, gibsOffset]); // Added gibsOffset so the map refreshes when you move the slider
-    // End code dynamic GIBS generator if 'MODIS' is selecte
+
+    // 4. Handle Clipping Mask
+    const updateMask = () => {
+      const nightPane = document.getElementById('night-lights-pane');
+      const terminatorPath = document.querySelector('.terminator-path');
+      
+      if (nightPane && terminatorPath) {
+        const pathData = terminatorPath.getAttribute('d');
+        if (pathData) {
+          nightPane.style.clipPath = `path('${pathData}')`;
+          nightPane.style.webkitClipPath = `path('${pathData}')`;
+        }
+      }
+    };
+
+    updateMask();
+    const maskInterval = setInterval(updateMask, 3000); 
+
+    return () => clearInterval(maskInterval);
+}, [mapStyle, gibsOffset]);
+  
+  // End code dynamic GIBS generator if 'MODIS' is selected
 
   // Countries overlay for "Countries" map style
   useEffect(() => {
@@ -367,30 +453,38 @@ export const WorldMap = ({
     const map = mapInstanceRef.current;
 
     // Remove old markers
-    if (deMarkerRef.current) map.removeLayer(deMarkerRef.current);
-    if (dxMarkerRef.current) map.removeLayer(dxMarkerRef.current);
+    deMarkerRef.current.forEach(m => map.removeLayer(m));
+    deMarkerRef.current = [];
+    dxMarkerRef.current.forEach(m => map.removeLayer(m));
+    dxMarkerRef.current = [];
 
-    // DE Marker
-    const deIcon = L.divIcon({
-      className: 'custom-marker de-marker',
-      html: 'DE',
-      iconSize: [32, 32],
-      iconAnchor: [16, 16]
+    // DE Marker — replicate across world copies
+    replicatePoint(deLocation.lat, deLocation.lon).forEach(([lat, lon]) => {
+      const deIcon = L.divIcon({
+        className: 'custom-marker de-marker',
+        html: 'DE',
+        iconSize: [32, 32],
+        iconAnchor: [16, 16]
+      });
+      const m = L.marker([lat, lon], { icon: deIcon })
+        .bindPopup(`<b>DE - Your Location</b><br>${calculateGridSquare(deLocation.lat, deLocation.lon)}<br>${deLocation.lat.toFixed(4)}°, ${deLocation.lon.toFixed(4)}°`)
+        .addTo(map);
+      deMarkerRef.current.push(m);
     });
-    deMarkerRef.current = L.marker([deLocation.lat, deLocation.lon], { icon: deIcon })
-      .bindPopup(`<b>DE - Your Location</b><br>${calculateGridSquare(deLocation.lat, deLocation.lon)}<br>${deLocation.lat.toFixed(4)}°, ${deLocation.lon.toFixed(4)}°`)
-      .addTo(map);
 
-    // DX Marker
-    const dxIcon = L.divIcon({
-      className: 'custom-marker dx-marker',
-      html: 'DX',
-      iconSize: [32, 32],
-      iconAnchor: [16, 16]
+    // DX Marker — replicate across world copies
+    replicatePoint(dxLocation.lat, dxLocation.lon).forEach(([lat, lon]) => {
+      const dxIcon = L.divIcon({
+        className: 'custom-marker dx-marker',
+        html: 'DX',
+        iconSize: [32, 32],
+        iconAnchor: [16, 16]
+      });
+      const m = L.marker([lat, lon], { icon: dxIcon })
+        .bindPopup(`<b>DX - Target</b><br>${calculateGridSquare(dxLocation.lat, dxLocation.lon)}<br>${dxLocation.lat.toFixed(4)}°, ${dxLocation.lon.toFixed(4)}°`)
+        .addTo(map);
+      dxMarkerRef.current.push(m);
     });
-    dxMarkerRef.current = L.marker([dxLocation.lat, dxLocation.lon], { icon: dxIcon })
-      .bindPopup(`<b>DX - Target</b><br>${calculateGridSquare(dxLocation.lat, dxLocation.lon)}<br>${dxLocation.lat.toFixed(4)}°, ${dxLocation.lon.toFixed(4)}°`)
-      .addTo(map);
   }, [deLocation, dxLocation]);
 
   // Update sun/moon markers every 60 seconds (matches terminator refresh)
@@ -501,21 +595,22 @@ export const WorldMap = ({
             dxPathsMarkersRef.current.push(dxCircle);
           });
           
-          // Add label if enabled (L.marker with divIcon auto-duplicates across world copies)
+          // Add label if enabled — replicate across world copies
           if (showDXLabels || isHovered) {
-            const dxLonNorm = normalizeLon(path.dxLon);
             const labelIcon = L.divIcon({
               className: '',
-              html: `<span style="display:inline-block;background:${isHovered ? '#fff' : color};color:${isHovered ? color : '#000'};padding:${isHovered ? '5px 10px' : '4px 8px'};border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:${isHovered ? '14px' : '12px'};font-weight:700;white-space:nowrap;border:2px solid ${isHovered ? color : 'rgba(0,0,0,0.5)'};box-shadow:0 2px ${isHovered ? '8px' : '4px'} rgba(0,0,0,${isHovered ? '0.6' : '0.4'});">${esc(path.dxCall)}</span>`,
+              html: `<span style="display:inline-block;background:${isHovered ? '#fff' : color};color:${isHovered ? color : '#000'};padding:${isHovered ? '5px 10px' : '4px 8px'};border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:${isHovered ? '14px' : '12px'};font-weight:700;white-space:nowrap;border:2px solid ${isHovered ? color : 'rgba(0,0,0,0.5)'};box-shadow:0 2px ${isHovered ? '8px' : '4px'} rgba(0,0,0,${isHovered ? '0.6' : '0.4'});">${path.dxCall}</span>`,
               iconSize: null,
               iconAnchor: [0, 0]
             });
-            const label = L.marker([path.dxLat, dxLonNorm], { 
-              icon: labelIcon, 
-              interactive: false,
-              zIndexOffset: isHovered ? 10000 : 0
-            }).addTo(map);
-            dxPathsMarkersRef.current.push(label);
+            replicatePoint(path.dxLat, path.dxLon).forEach(([lat, lon]) => {
+              const label = L.marker([lat, lon], { 
+                icon: labelIcon, 
+                interactive: false,
+                zIndexOffset: isHovered ? 10000 : 0
+              }).addTo(map);
+              dxPathsMarkersRef.current.push(label);
+            });
           }
         } catch (err) {
           console.error('Error rendering DX path:', err);
@@ -535,28 +630,32 @@ export const WorldMap = ({
     if (showPOTA && potaSpots) {
       potaSpots.forEach(spot => {
         if (spot.lat && spot.lon) {
-          // Green triangle marker for POTA activators
-          const triangleIcon = L.divIcon({
-            className: '',
-            html: `<span style="display:inline-block;width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:14px solid #44cc44;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.6));"></span>`,
-            iconSize: [14, 14],
-            iconAnchor: [7, 14]
+          // Green triangle marker for POTA activators — replicate across world copies
+          replicatePoint(spot.lat, spot.lon).forEach(([lat, lon]) => {
+            const triangleIcon = L.divIcon({
+              className: '',
+              html: `<span style="display:inline-block;width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:14px solid #44cc44;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.6));"></span>`,
+              iconSize: [14, 14],
+              iconAnchor: [7, 14]
+            });
+            const marker = L.marker([lat, lon], { icon: triangleIcon })
+              .bindPopup(`<b data-qrz-call="${esc(spot.call)}" style="color:#44cc44; cursor:pointer">${esc(spot.call)}</b><br><span style="color:#888">${esc(spot.ref)}</span> ${esc(spot.locationDesc || '')}<br>${spot.name ? `<i>${esc(spot.name)}</i><br>` : ''}${esc(spot.freq)} ${esc(spot.mode || '')} <span style="color:#888">${esc(spot.time || '')}</span>`)
+              .addTo(map);
+            potaMarkersRef.current.push(marker);
           });
-          const marker = L.marker([spot.lat, spot.lon], { icon: triangleIcon })
-            .bindPopup(`<b data-qrz-call="${esc(spot.call)}" style="color:#44cc44; cursor:pointer">${esc(spot.call)}</b><br><span style="color:#888">${esc(spot.ref)}</span> ${esc(spot.locationDesc || '')}<br>${spot.name ? `<i>${esc(spot.name)}</i><br>` : ''}${esc(spot.freq)} ${esc(spot.mode || '')} <span style="color:#888">${esc(spot.time || '')}</span>`)
-            .addTo(map);
-          potaMarkersRef.current.push(marker);
 
-          // Only show callsign label when labels are enabled
+          // Only show callsign label when labels are enabled — replicate
           if (showDXLabels) {
             const labelIcon = L.divIcon({
               className: '',
-              html: `<span style="display:inline-block;background:#44cc44;color:#000;padding:4px 8px;border-radius:4px;font-size:12px;font-family:'JetBrains Mono',monospace;font-weight:700;white-space:nowrap;border:2px solid rgba(0,0,0,0.5);box-shadow:0 2px 4px rgba(0,0,0,0.4);">${esc(spot.call)}</span>`,
+              html: `<span style="display:inline-block;background:#44cc44;color:#000;padding:4px 8px;border-radius:4px;font-size:12px;font-family:'JetBrains Mono',monospace;font-weight:700;white-space:nowrap;border:2px solid rgba(0,0,0,0.5);box-shadow:0 2px 4px rgba(0,0,0,0.4);">${spot.call}</span>`,
               iconSize: null,
               iconAnchor: [0, -2]
             });
-            const label = L.marker([spot.lat, spot.lon], { icon: labelIcon, interactive: false }).addTo(map);
-            potaMarkersRef.current.push(label);
+            replicatePoint(spot.lat, spot.lon).forEach(([lat, lon]) => {
+              const label = L.marker([lat, lon], { icon: labelIcon, interactive: false }).addTo(map);
+              potaMarkersRef.current.push(label);
+            });
           }
         }
       });
@@ -586,7 +685,7 @@ export const WorldMap = ({
             .addTo(map);
           wwffMarkersRef.current.push(marker);
 
-          // Only show callsign label when labels are enabled
+          // Only show callsign label when labels are enabled — replicate
           if (showDXLabels) {
             const labelIcon = L.divIcon({
               className: '',
@@ -594,8 +693,10 @@ export const WorldMap = ({
               iconSize: null,
               iconAnchor: [0, -2]
             });
-            const label = L.marker([spot.lat, spot.lon], { icon: labelIcon, interactive: false }).addTo(map);
-            wwffMarkersRef.current.push(label);
+            replicatePoint(spot.lat, spot.lon).forEach(([lat, lon]) => {
+              const label = L.marker([spot.lat, spot.lon], { icon: labelIcon, interactive: false }).addTo(map);
+              wwffMarkersRef.current.push(label);
+            });
           }
         }
       });
@@ -613,112 +714,39 @@ export const WorldMap = ({
     if (showSOTA && sotaSpots) {
       sotaSpots.forEach(spot => {
         if (spot.lat && spot.lon) {
-          // Orange diamond marker for SOTA activators
-          const diamondIcon = L.divIcon({
-            className: '',
-            html: `<span style="display:inline-block;width:12px;height:12px;background:#ff9632;transform:rotate(45deg);border:1px solid rgba(0,0,0,0.4);filter:drop-shadow(0 1px 2px rgba(0,0,0,0.6));"></span>`,
-            iconSize: [12, 12],
-            iconAnchor: [6, 6]
+          // Orange diamond marker for SOTA activators — replicate across world copies
+          replicatePoint(spot.lat, spot.lon).forEach(([lat, lon]) => {
+            const diamondIcon = L.divIcon({
+              className: '',
+              html: `<span style="display:inline-block;width:12px;height:12px;background:#ff9632;transform:rotate(45deg);border:1px solid rgba(0,0,0,0.4);filter:drop-shadow(0 1px 2px rgba(0,0,0,0.6));"></span>`,
+              iconSize: [12, 12],
+              iconAnchor: [6, 6]
+            });
+            const marker = L.marker([lat, lon], { icon: diamondIcon })
+              .bindPopup(`<b data-qrz-call="${esc(spot.call)}" style="color:#ff9632; cursor:pointer">${esc(spot.call)}</b><br><span style="color:#888">${esc(spot.ref)}</span>${spot.summit ? ` — ${esc(spot.summit)}` : ''}${spot.points ? ` <span style="color:#ff9632">(${esc(spot.points)}pt)</span>` : ''}<br>${esc(spot.freq)} ${esc(spot.mode || '')} <span style="color:#888">${esc(spot.time || '')}</span>`)
+              .addTo(map);
+            sotaMarkersRef.current.push(marker);
           });
-          const marker = L.marker([spot.lat, spot.lon], { icon: diamondIcon })
-            .bindPopup(`<b data-qrz-call="${esc(spot.call)}" style="color:#ff9632; cursor:pointer">${esc(spot.call)}</b><br><span style="color:#888">${esc(spot.ref)}</span>${spot.summit ? ` — ${esc(spot.summit)}` : ''}${spot.points ? ` <span style="color:#ff9632">(${esc(spot.points)}pt)</span>` : ''}<br>${esc(spot.freq)} ${esc(spot.mode || '')} <span style="color:#888">${esc(spot.time || '')}</span>`)
-            .addTo(map);
-          sotaMarkersRef.current.push(marker);
 
-          // Only show callsign label when labels are enabled
+          // Only show callsign label when labels are enabled — replicate
           if (showDXLabels) {
             const labelIcon = L.divIcon({
               className: '',
-              html: `<span style="display:inline-block;background:#ff9632;color:#000;padding:4px 8px;border-radius:4px;font-size:12px;font-family:'JetBrains Mono',monospace;font-weight:700;white-space:nowrap;border:2px solid rgba(0,0,0,0.5);box-shadow:0 2px 4px rgba(0,0,0,0.4);">${esc(spot.call)}</span>`,
+              html: `<span style="display:inline-block;background:#ff9632;color:#000;padding:4px 8px;border-radius:4px;font-size:12px;font-family:'JetBrains Mono',monospace;font-weight:700;white-space:nowrap;border:2px solid rgba(0,0,0,0.5);box-shadow:0 2px 4px rgba(0,0,0,0.4);">${spot.call}</span>`,
               iconSize: null,
               iconAnchor: [0, -2]
             });
-            const label = L.marker([spot.lat, spot.lon], { icon: labelIcon, interactive: false }).addTo(map);
-            sotaMarkersRef.current.push(label);
+            replicatePoint(spot.lat, spot.lon).forEach(([lat, lon]) => {
+              const label = L.marker([lat, lon], { icon: labelIcon, interactive: false }).addTo(map);
+              sotaMarkersRef.current.push(label);
+            });
           }
         }
       });
     }
   }, [sotaSpots, showSOTA, showDXLabels]);
 
-  // Update satellite markers with orbit tracks
-  useEffect(() => {
-    if (!mapInstanceRef.current) return;
-    const map = mapInstanceRef.current;
-
-    satMarkersRef.current.forEach(m => map.removeLayer(m));
-    satMarkersRef.current = [];
-    satTracksRef.current.forEach(t => map.removeLayer(t));
-    satTracksRef.current = [];
-
-    if (showSatellites && satellites && satellites.length > 0) {
-      satellites.forEach(sat => {
-        const satColor = sat.color || '#00ffff';
-        const satColorDark = sat.visible ? satColor : '#446666';
-        
-        // Draw orbit track if available
-        if (sat.track && sat.track.length > 1) {
-          // Unwrap longitudes for continuous path, then replicate across world copies
-          const unwrapped = sat.track.map(p => [...p]);
-          for (let i = 1; i < unwrapped.length; i++) {
-            while (unwrapped[i][1] - unwrapped[i-1][1] > 180) unwrapped[i][1] -= 360;
-            while (unwrapped[i][1] - unwrapped[i-1][1] < -180) unwrapped[i][1] += 360;
-          }
-          
-          // Render on all 3 world copies
-          replicatePath(unwrapped).forEach(copy => {
-            const trackLine = L.polyline(copy, {
-              color: sat.visible ? satColor : satColorDark,
-              weight: 2,
-              opacity: sat.visible ? 0.8 : 0.4,
-              dashArray: sat.visible ? null : '5, 5'
-            }).addTo(map);
-            satTracksRef.current.push(trackLine);
-          });
-        }
-        
-        // Draw footprint circle if available and satellite is visible
-        if (sat.footprintRadius && sat.lat && sat.lon && sat.visible) {
-          replicatePoint(sat.lat, sat.lon).forEach(([fLat, fLon]) => {
-            const footprint = L.circle([fLat, fLon], {
-              radius: sat.footprintRadius * 1000, // Convert km to meters
-              color: satColor,
-              weight: 1,
-              opacity: 0.5,
-              fillColor: satColor,
-              fillOpacity: 0.1
-            }).addTo(map);
-            satTracksRef.current.push(footprint);
-          });
-        }
-        
-        // Add satellite marker icon
-        const icon = L.divIcon({
-          className: '',
-          html: `<span style="display:inline-block;background:${sat.visible ? satColor : satColorDark};color:${sat.visible ? '#000' : '#fff'};padding:4px 8px;border-radius:4px;font-size:11px;font-family:'JetBrains Mono',monospace;white-space:nowrap;border:2px solid ${sat.visible ? '#fff' : '#666'};font-weight:bold;box-shadow:0 2px 4px rgba(0,0,0,0.4);">⛊ ${esc(sat.name)}</span>`,
-          iconSize: null,
-          iconAnchor: [0, 0]
-        });
-        
-        const marker = L.marker([sat.lat, sat.lon], { icon })
-          .bindPopup(`
-            <b>⛊ ${esc(sat.name)}</b><br>
-            <table style="font-size: 11px;">
-              <tr><td>Mode:</td><td><b>${esc(sat.mode || 'Unknown')}</b></td></tr>
-              <tr><td>Alt:</td><td>${units === 'imperial' ? Math.round(sat.alt * 0.621371).toLocaleString() + ' mi' : Math.round(sat.alt).toLocaleString() + ' km'}</td></tr>
-              <tr><td>Az:</td><td>${sat.azimuth}°</td></tr>
-              <tr><td>El:</td><td>${sat.elevation}°</td></tr>
-              <tr><td>Range:</td><td>${units === 'imperial' ? Math.round(sat.range * 0.621371).toLocaleString() + ' mi' : Math.round(sat.range).toLocaleString() + ' km'}</td></tr>
-              <tr><td>Status:</td><td>${sat.visible ? '<span style="color:green">✓ Visible</span>' : '<span style="color:gray">Below horizon</span>'}</td></tr>
-            </table>
-          `)
-          .addTo(map);
-        satMarkersRef.current.push(marker);
-      });
-    }
-  }, [satellites, showSatellites]);
-
-  // Plugin layer system - properly load saved states
+    // Plugin layer system - properly load saved states
   useEffect(() => {
     if (!mapInstanceRef.current) return;
 
@@ -748,49 +776,54 @@ export const WorldMap = ({
       }
 
       // Expose controls for SettingsPanel
-      window.hamclockLayerControls = {
-        layers: availableLayers.map(l => ({
-          ...l,
-          enabled: pluginLayerStates[l.id]?.enabled ?? initialStates[l.id]?.enabled ?? l.defaultEnabled,
-          opacity: pluginLayerStates[l.id]?.opacity ?? initialStates[l.id]?.opacity ?? l.defaultOpacity
-        })),
-        toggleLayer: (id, enabled) => {
-          console.log(`Toggle layer ${id}:`, enabled);
-          const settings = getStoredMapSettings();
-          const layers = settings.layers || {};
-          layers[id] = { 
-            enabled: enabled,
-            opacity: layers[id]?.opacity ?? 0.6
-          };
-          localStorage.setItem('openhamclock_mapSettings', JSON.stringify({ ...settings, layers }));
-          console.log('Saved to localStorage:', layers);
-          setPluginLayerStates(prev => ({ 
-            ...prev, 
-            [id]: { 
-              ...prev[id], 
-              enabled: enabled 
-            } 
-          }));
-        },
-        setOpacity: (id, opacity) => {
-          console.log(`Set opacity ${id}:`, opacity);
-          const settings = getStoredMapSettings();
-          const layers = settings.layers || {};
-          layers[id] = { 
-            enabled: layers[id]?.enabled ?? false,
-            opacity: opacity
-          };
-          localStorage.setItem('openhamclock_mapSettings', JSON.stringify({ ...settings, layers }));
-          console.log('Saved to localStorage:', layers);
-          setPluginLayerStates(prev => ({ 
-            ...prev, 
-            [id]: { 
-              ...prev[id], 
-              opacity: opacity 
-            } 
-          }));
-        }
-      };
+		window.hamclockLayerControls = {
+		  layers: availableLayers.map(l => ({
+			...l,
+			enabled: pluginLayerStates[l.id]?.enabled ?? initialStates[l.id]?.enabled ?? l.defaultEnabled,
+			opacity: pluginLayerStates[l.id]?.opacity ?? initialStates[l.id]?.opacity ?? l.defaultOpacity,
+			// ADD: Pass the current config (showTracks/showFootprints) to the settings menu
+			config: pluginLayerStates[l.id]?.config ?? initialStates[l.id]?.config ?? l.config
+		  })),
+		  
+		  toggleLayer: (id, enabled) => {
+			const settings = getStoredMapSettings();
+			const layers = settings.layers || {};
+			layers[id] = { ...(layers[id] || {}), enabled };
+			localStorage.setItem('openhamclock_mapSettings', JSON.stringify({ ...settings, layers }));
+			setPluginLayerStates(prev => ({ ...prev, [id]: { ...prev[id], enabled } }));
+		  },
+
+		  setOpacity: (id, opacity) => {
+			const settings = getStoredMapSettings();
+			const layers = settings.layers || {};
+			layers[id] = { ...(layers[id] || {}), opacity };
+			localStorage.setItem('openhamclock_mapSettings', JSON.stringify({ ...settings, layers }));
+			setPluginLayerStates(prev => ({ ...prev, [id]: { ...prev[id], opacity } }));
+		  },
+
+		  // ADD THIS NEW FUNCTION:
+		  updateLayerConfig: (id, configDelta) => {
+			const settings = getStoredMapSettings();
+			const layers = settings.layers || {};
+			const currentLayer = layers[id] || {};
+			
+			// Merge the new checkbox state (e.g., {showTracks: false}) into existing config
+			layers[id] = {
+			  ...currentLayer,
+			  config: { ...(currentLayer.config || {}), ...configDelta }
+			};
+			
+			// Save to localStorage so it persists after refresh
+			localStorage.setItem('openhamclock_mapSettings', JSON.stringify({ ...settings, layers }));
+			
+			// Update React state to trigger the map redraw
+			setPluginLayerStates(prev => ({
+			  ...prev,
+			  [id]: { ...prev[id], config: { ...(prev[id]?.config || {}), ...configDelta } }
+			}));
+		  }
+		};
+		
     } catch (err) {
       console.error('Plugin system error:', err);
     }
@@ -816,7 +849,10 @@ export const WorldMap = ({
         let spotLon = parseFloat(spot.lon);
         
         if (!isNaN(spotLat) && !isNaN(spotLon)) {
-          const displayCall = spot.receiver || spot.sender;
+          // For TX spots (you transmitted → someone received): show the receiver (remote station)
+          // For RX spots (someone transmitted → you received): show the sender (remote station)
+          const displayCall = spot.direction === 'rx' ? spot.sender : (spot.receiver || spot.sender);
+          const dirLabel = spot.direction === 'rx' ? 'RX' : 'TX';
           const freqMHz = spot.freqMHz || (spot.freq ? (spot.freq / 1000000).toFixed(3) : '?');
           const bandColor = getBandColor(parseFloat(freqMHz));
           
@@ -852,7 +888,7 @@ export const WorldMap = ({
                 opacity: 0.9,
                 fillOpacity: 0.8
               }).bindPopup(`
-                <b data-qrz-call="${esc(displayCall)}" style="cursor:pointer">${esc(displayCall)}</b><br>
+                <b data-qrz-call="${esc(displayCall)}" style="cursor:pointer">${esc(displayCall)}</b> <span style="color:#888;font-size:10px">${dirLabel}</span><br>
                 ${esc(spot.mode)} @ ${esc(freqMHz)} MHz<br>
                 ${spot.snr !== null ? `SNR: ${spot.snr > 0 ? '+' : ''}${spot.snr} dB` : ''}
               `).addTo(map);
@@ -921,26 +957,28 @@ export const WorldMap = ({
               });
             }
 
-            // Diamond-shaped marker (L.marker with divIcon auto-duplicates across world copies)
-            const diamond = L.marker([spotLat, normalizeLon(spotLon)], {
-              icon: L.divIcon({
-                className: '',
-                html: `<div style="
-                  width: 8px; height: 8px;
-                  background: ${bandColor};
-                  border: 1px solid ${isEstimated ? '#888' : '#fff'};
-                  transform: rotate(45deg);
-                  opacity: ${isEstimated ? 0.5 : 0.9};
-                "></div>`,
-                iconSize: [8, 8],
-                iconAnchor: [4, 4]
-              })
-            }).bindPopup(`
-              <b data-qrz-call="${esc(call)}" style="cursor:pointer">${esc(call)}</b> ${spot.type === 'CQ' ? 'CQ' : ''}<br>
-              ${esc(spot.grid || '')} ${esc(spot.band || '')}${spot.gridSource === 'prefix' ? ' <i>(est)</i>' : spot.gridSource === 'cache' ? ' <i>(prev)</i>' : ''}<br>
-              ${esc(spot.mode || '')} SNR: ${spot.snr != null ? (spot.snr >= 0 ? '+' : '') + spot.snr : '?'} dB
-            `).addTo(map);
-            wsjtxMarkersRef.current.push(diamond);
+            // Diamond-shaped marker — replicate across world copies
+            replicatePoint(spotLat, spotLon).forEach(([rLat, rLon]) => {
+              const diamond = L.marker([rLat, rLon], {
+                icon: L.divIcon({
+                  className: '',
+                  html: `<div style="
+                    width: 8px; height: 8px;
+                    background: ${bandColor};
+                    border: 1px solid ${isEstimated ? '#888' : '#fff'};
+                    transform: rotate(45deg);
+                    opacity: ${isEstimated ? 0.5 : 0.9};
+                  "></div>`,
+                  iconSize: [8, 8],
+                  iconAnchor: [4, 4]
+                })
+              }).bindPopup(`
+                <b data-qrz-call="${esc(call)}" style="cursor:pointer">${esc(call)}</b> ${spot.type === 'CQ' ? 'CQ' : ''}<br>
+                ${esc(spot.grid || '')} ${esc(spot.band || '')}${spot.gridSource === 'prefix' ? ' <i>(est)</i>' : spot.gridSource === 'cache' ? ' <i>(prev)</i>' : ''}<br>
+                ${esc(spot.mode || '')} SNR: ${spot.snr != null ? (spot.snr >= 0 ? '+' : '') + spot.snr : '?'} dB
+              `).addTo(map);
+              wsjtxMarkersRef.current.push(diamond);
+            });
           } catch (err) {
             // skip bad spots
           }
@@ -953,21 +991,52 @@ export const WorldMap = ({
     <div style={{ position: 'relative', height: '100%', minHeight: '200px' }}>
       <div ref={mapRef} style={{ height: '100%', width: '100%', borderRadius: '8px', background: mapStyle === 'countries' ? '#4a90d9' : undefined }} />
 
-		{/* Render all plugin layers */}
-		{mapInstanceRef.current && getAvailableLayers().map(layerDef => (
-		  <PluginLayer
-		    key={layerDef.id}
-		    plugin={layerDef}
-		    // Use the exact metadata names as fallbacks
-		    enabled={pluginLayerStates[layerDef.id]?.enabled ?? layerDef.defaultEnabled}
-		    opacity={pluginLayerStates[layerDef.id]?.opacity ?? layerDef.defaultOpacity}
-		    map={mapInstanceRef.current}
-		    callsign={callsign}
-		    locator={deLocator}
-		    lowMemoryMode={lowMemoryMode}
-		  />
+      {/* Render all plugin layers */}
+      {mapInstanceRef.current && getAllLayers().map(layerDef => (
+	  <PluginLayer
+		key={layerDef.id}
+		plugin={layerDef}
+		enabled={pluginLayerStates[layerDef.id]?.enabled ?? layerDef.defaultEnabled}
+		opacity={pluginLayerStates[layerDef.id]?.opacity ?? layerDef.defaultOpacity}
+		config={pluginLayerStates[layerDef.id]?.config ?? layerDef.config}
+		  
+		  map={mapInstanceRef.current}
+		  satellites={satellites}
+		  units={units}
+		  callsign={callsign}
+		  locator={deLocator}
+		  lowMemoryMode={lowMemoryMode}
+		/>
 		))}
-      //  MODIS SLIDER CODE HERE 
+
+      {/* MODIS Control (Only shows when MODIS map style is active) */}
+
+      {/* Map lock toggle — below Leaflet zoom controls */}
+      <button
+        onClick={() => setMapLocked(prev => !prev)}
+        title={mapLocked ? 'Unlock map (enable panning/zooming)' : 'Lock map (prevent accidental panning/zooming)'}
+        style={{
+          position: 'absolute',
+          top: '72px',
+          left: '10px',
+          width: '30px',
+          height: '30px',
+          background: mapLocked ? 'rgba(255, 80, 80, 0.25)' : 'rgba(0, 0, 0, 0.6)',
+          border: `2px solid ${mapLocked ? 'rgba(255, 80, 80, 0.7)' : 'rgba(0,0,0,0.3)'}`,
+          borderRadius: '4px',
+          color: mapLocked ? '#ff5050' : '#ccc',
+          fontSize: '14px',
+          cursor: 'pointer',
+          zIndex: 1000,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          lineHeight: 1
+        }}
+      >
+        {mapLocked ? '🔒' : '🔓'}
+      </button>
+
       {mapStyle === 'MODIS' && (
         <div style={{
           position: 'absolute',
@@ -981,22 +1050,19 @@ export const WorldMap = ({
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          gap: '5px'
+          gap: '10px'
         }}>
           <div style={{ color: '#00ffcc', fontSize: '10px', fontFamily: 'JetBrains Mono' }}>
-            {gibsOffset === 0 ? 'LATEST' : `${gibsOffset} DAYS AGO`}
+            {gibsOffset === 0 ? 'LATEST IMAGERY' : `${gibsOffset} DAYS AGO`}
           </div>
           <input 
-            type="range" 
-            min="0" 
-            max="7" 
-            value={gibsOffset} 
+            type="range" min="0" max="7" value={gibsOffset} 
             onChange={(e) => setGibsOffset(parseInt(e.target.value))}
             style={{ cursor: 'pointer', width: '100px' }}
           />
         </div>
-      )} 
-      // End MODIS SLIDER CODE
+      )}
+
       {/* Map style dropdown */}
       <select
         value={mapStyle}
@@ -1023,28 +1089,7 @@ export const WorldMap = ({
       </select>
       
       {/* Satellite toggle */}
-      {onToggleSatellites && (
-        <button
-          onClick={onToggleSatellites}
-          title={showSatellites ? 'Hide satellite tracks' : 'Show satellite tracks'}
-          style={{
-            position: 'absolute',
-            top: '10px',
-            left: '50px',
-            background: showSatellites ? 'rgba(0, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.8)',
-            border: `1px solid ${showSatellites ? '#00ffff' : '#666'}`,
-            color: showSatellites ? '#00ffff' : '#888',
-            padding: '6px 10px',
-            borderRadius: '4px',
-            fontSize: '11px',
-            fontFamily: 'JetBrains Mono',
-            cursor: 'pointer',
-            zIndex: 1000
-          }}
-        >
-          ⛊ SAT {showSatellites ? 'ON' : 'OFF'}
-        </button>
-      )}
+
       
       {/* Labels toggle */}
       {onToggleDXLabels && showDXPaths && (
@@ -1054,7 +1099,7 @@ export const WorldMap = ({
           style={{
             position: 'absolute',
             top: '10px',
-            left: '145px',
+            left: '50px',
             background: showDXLabels ? 'rgba(255, 170, 0, 0.2)' : 'rgba(0, 0, 0, 0.8)',
             border: `1px solid ${showDXLabels ? '#ffaa00' : '#666'}`,
             color: showDXLabels ? '#ffaa00' : '#888',
@@ -1075,66 +1120,65 @@ export const WorldMap = ({
 
       {/* Legend - centered above news ticker */}
       {!hideOverlays && (
-      <div style={{
-        position: 'absolute',
-        bottom: '44px',
-        left: '50%',
-        transform: 'translateX(-50%)',
-        background: 'rgba(0, 0, 0, 0.85)',
-        border: '1px solid #444',
-        borderRadius: '6px',
-        padding: '6px 10px',
-        zIndex: 1000,
-        display: 'flex',
-        gap: '8px',
-        alignItems: 'center',
-        fontSize: '11px',
-        fontFamily: 'JetBrains Mono, monospace',
-        flexWrap: 'nowrap'
-      }}>
-        {showDXPaths && (
+        <div style={{
+          position: 'absolute',
+          bottom: '44px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          background: 'rgba(0, 0, 0, 0.85)',
+          border: '1px solid #444',
+          borderRadius: '6px',
+          padding: '6px 10px',
+          zIndex: 1000,
+          display: 'flex',
+          gap: '8px',
+          alignItems: 'center',
+          fontSize: '11px',
+          fontFamily: 'JetBrains Mono, monospace',
+          flexWrap: 'nowrap'
+        }}>
+          {showDXPaths && (
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <span style={{ color: '#888' }}>DX:</span>
+              <span style={{ background: '#ff6666', color: '#000', padding: '2px 5px', borderRadius: '3px', fontWeight: '600' }}>160m</span>
+              <span style={{ background: '#ff9966', color: '#000', padding: '2px 5px', borderRadius: '3px', fontWeight: '600' }}>80m</span>
+              <span style={{ background: '#ffcc66', color: '#000', padding: '2px 5px', borderRadius: '3px', fontWeight: '600' }}>40m</span>
+              <span style={{ background: '#ccff66', color: '#000', padding: '2px 5px', borderRadius: '3px', fontWeight: '600' }}>30m</span>
+              <span style={{ background: '#66ff99', color: '#000', padding: '2px 5px', borderRadius: '3px', fontWeight: '600' }}>20m</span>
+              <span style={{ background: '#66ffcc', color: '#000', padding: '2px 5px', borderRadius: '3px', fontWeight: '600' }}>17m</span>
+              <span style={{ background: '#66ccff', color: '#000', padding: '2px 5px', borderRadius: '3px', fontWeight: '600' }}>15m</span>
+              <span style={{ background: '#6699ff', color: '#000', padding: '2px 5px', borderRadius: '3px', fontWeight: '600' }}>12m</span>
+              <span style={{ background: '#9966ff', color: '#fff', padding: '2px 5px', borderRadius: '3px', fontWeight: '600' }}>10m</span>
+              <span style={{ background: '#cc66ff', color: '#fff', padding: '2px 5px', borderRadius: '3px', fontWeight: '600' }}>6m</span>
+            </div>
+          )}
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <span style={{ color: '#888' }}>DX:</span>
-            <span style={{ background: '#ff6666', color: '#000', padding: '2px 5px', borderRadius: '3px', fontWeight: '600' }}>160m</span>
-            <span style={{ background: '#ff9966', color: '#000', padding: '2px 5px', borderRadius: '3px', fontWeight: '600' }}>80m</span>
-            <span style={{ background: '#ffcc66', color: '#000', padding: '2px 5px', borderRadius: '3px', fontWeight: '600' }}>40m</span>
-            <span style={{ background: '#ccff66', color: '#000', padding: '2px 5px', borderRadius: '3px', fontWeight: '600' }}>30m</span>
-            <span style={{ background: '#66ff99', color: '#000', padding: '2px 5px', borderRadius: '3px', fontWeight: '600' }}>20m</span>
-            <span style={{ background: '#66ffcc', color: '#000', padding: '2px 5px', borderRadius: '3px', fontWeight: '600' }}>17m</span>
-            <span style={{ background: '#66ccff', color: '#000', padding: '2px 5px', borderRadius: '3px', fontWeight: '600' }}>15m</span>
-            <span style={{ background: '#6699ff', color: '#000', padding: '2px 5px', borderRadius: '3px', fontWeight: '600' }}>12m</span>
-            <span style={{ background: '#9966ff', color: '#fff', padding: '2px 5px', borderRadius: '3px', fontWeight: '600' }}>10m</span>
-            <span style={{ background: '#cc66ff', color: '#fff', padding: '2px 5px', borderRadius: '3px', fontWeight: '600' }}>6m</span>
+            <span style={{ background: 'var(--accent-amber)', color: '#000', padding: '2px 5px', borderRadius: '3px', fontWeight: '600' }}>● DE</span>
+            <span style={{ background: '#00aaff', color: '#000', padding: '2px 5px', borderRadius: '3px', fontWeight: '600' }}>● DX</span>
           </div>
-        )}
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <span style={{ background: 'var(--accent-amber)', color: '#000', padding: '2px 5px', borderRadius: '3px', fontWeight: '600' }}>● DE</span>
-          <span style={{ background: '#00aaff', color: '#000', padding: '2px 5px', borderRadius: '3px', fontWeight: '600' }}>● DX</span>
-        </div>
-        {showPOTA && (
-          <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-            <span style={{ background: '#44cc44', color: '#000', padding: '2px 5px', borderRadius: '3px', fontWeight: '600' }}>▲ POTA</span>
-          </div>
-        )}
-        {showWWFF && (
+          {showPOTA && (
+            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+              <span style={{ background: '#44cc44', color: '#000', padding: '2px 5px', borderRadius: '3px', fontWeight: '600' }}>▲ POTA</span>
+            </div>
+          )}
+          {showWWFF && (
           <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
             <span style={{ background: '#a3f3a3', color: '#000', padding: '2px 5px', borderRadius: '3px', fontWeight: '600' }}>▲ WWFF</span>
           </div>
-        )}
-        {showSOTA && (
-          <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-            <span style={{ background: '#ff9632', color: '#000', padding: '2px 5px', borderRadius: '3px', fontWeight: '600' }}>◆ SOTA</span>
+          )}
+          {showSOTA && (
+            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+              <span style={{ background: '#ff9632', color: '#000', padding: '2px 5px', borderRadius: '3px', fontWeight: '600' }}>◆ SOTA</span>
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+            <span style={{ color: '#ffcc00' }}>☼ Sun</span>
+            <span style={{ color: '#aaaaaa' }}>☽ Moon</span>
           </div>
-        )}
-        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-          <span style={{ color: '#ffcc00' }}>☼ Sun</span>
-          <span style={{ color: '#aaaaaa' }}>☽ Moon</span>
         </div>
-      </div>
       )}
     </div>
   );
 };
-
 
 export default WorldMap;
