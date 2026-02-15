@@ -4,6 +4,7 @@
  */
 import { useState, useEffect, useRef } from 'react';
 import { useVisibilityRefresh } from './useVisibilityRefresh';
+import { apiFetch } from '../utils/apiFetch';
 
 export const useWWFFSpots = () => {
   const [data, setData] = useState([]);
@@ -14,7 +15,7 @@ export const useWWFFSpots = () => {
     const fetchWWFF = async () => {
       try {
         // Use server proxy for caching - reduces external API calls
-        const res = await fetch('/api/wwff/spots');
+        const res = await apiFetch('/api/wwff/spots');
         if (res.ok) {
           const spots = await res.json();
           
