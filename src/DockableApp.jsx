@@ -313,7 +313,7 @@ export const DockableApp = ({
   const rot = useRotator({
   mock: false,
   endpointUrl: "/api/rotator/status",
-  pollMs: 1000,
+  pollMs: 2000,
   staleMs: 5000,
 });
   const turnRotator = useCallback(async (azimuth) => {
